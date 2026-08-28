@@ -168,7 +168,8 @@ export default async function handler(req, res) {
       });
       data.articles = data.articles.map(a => {
         const img = a.image || a.imageUrl || a.urlToImage;
-        if (img && freq[img] >= 3) {
+        // Faqat juda ko'p takrorlangan default/logo rasmlarni olib tashlaymiz
+        if (img && freq[img] >= 5) {
           return { ...a, image: '', imageUrl: '', urlToImage: '' };
         }
         return a;

@@ -15,6 +15,7 @@ try{
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
+  /* Dark va Light to'liq ajratilgan — har biri o'z tokenlari */
   :root, html[data-theme="dark"]{
     --paper:#16140f;
     --paper-raised:#1f1c16;
@@ -26,6 +27,19 @@ try{
     --line:#2f2b24;
     --btn:#1f1c16;
     --btn-hover:#2a261f;
+    --control-bg:transparent;
+    --control-bg-hover:transparent;
+    --control-bg-on:var(--wire-amber);
+    --control-ink:var(--ink-dim);
+    --control-ink-hover:var(--wire-amber);
+    --control-ink-on:#0d0d0c;
+    --control-border:var(--line);
+    --control-border-on:var(--wire-amber);
+    --thumb-bg:var(--paper-raised);
+    --thumb-border:color-mix(in srgb, var(--wire-red) 55%, var(--line));
+    --desc:var(--ink-dim);
+    --on-accent:#0d0d0c;
+    --on-strong:#ffffff;
     --radius:14px;
     --radius-sm:10px;
     --shadow:0 10px 30px rgba(0,0,0,.28);
@@ -44,6 +58,19 @@ try{
     --line:#e0d5c3;
     --btn:#f8f2e6;
     --btn-hover:#efe6d4;
+    --control-bg:#ffffff;
+    --control-bg-hover:#ffffff;
+    --control-bg-on:#ffffff;
+    --control-ink:var(--ink-dim);
+    --control-ink-hover:var(--wire-amber);
+    --control-ink-on:var(--wire-amber);
+    --control-border:var(--line);
+    --control-border-on:var(--wire-amber);
+    --thumb-bg:#ffffff;
+    --thumb-border:var(--line);
+    --desc:#2f2a22;
+    --on-accent:#0d0d0c;
+    --on-strong:#ffffff;
     --shadow:0 10px 28px rgba(40,32,16,.08);
     color-scheme: light;
   }
@@ -119,17 +146,11 @@ try{
     flex-shrink:0;
   }
   .brand .dot{
-    width:9px;height:9px;border-radius:50%;
+    width:10px;height:10px;border-radius:50%;
     background:var(--wire-red);
     display:inline-block;
     animation:pulse 1.6s infinite;
-  }
-  .brand-logo{
-    width:48px;
-    height:48px;
-    border-radius:12px;
     flex-shrink:0;
-    display:block;
   }
 
   nav.top-nav{
@@ -174,7 +195,7 @@ try{
   nav.top-nav .hdr-btn.active{
     background:var(--wire-red);
     border-color:var(--wire-red);
-    color:#fff;
+    color:var(--on-strong);
   }
   nav.top-nav .hdr-btn.loading{
     opacity:.6;
@@ -251,14 +272,17 @@ try{
     gap:10px;
   }
   h1 span.blink{
-    width:10px;height:10px;border-radius:50%;
+    width:11px;
+    height:11px;
+    border-radius:50%;
     background:var(--wire-red);
     display:inline-block;
+    flex-shrink:0;
     animation:pulse 1.6s infinite;
   }
   @keyframes pulse{
-    0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(194,59,46,.5);}
-    50%{opacity:.4;box-shadow:0 0 0 6px rgba(194,59,46,0);}
+    0%,100%{opacity:1; box-shadow:0 0 0 0 color-mix(in srgb, var(--wire-red) 55%, transparent);}
+    50%{opacity:.55; box-shadow:0 0 0 8px transparent;}
   }
 
   .status-line{
@@ -272,7 +296,7 @@ try{
   .translate-btn.active{
     background:var(--wire-green);
     border-color:var(--wire-green);
-    color:#0d0d0c;
+    color:var(--on-accent);
   }
   .translate-btn.loading svg{
     animation:spin 1s linear infinite;
@@ -318,7 +342,7 @@ try{
   .tab-btn.active{
     background:var(--wire-red);
     border-color:var(--wire-red);
-    color:#fff;
+    color:var(--on-strong);
     font-weight:700;
   }
 
@@ -353,34 +377,6 @@ try{
     gap:12px;
     flex-wrap:wrap;
   }
-  .feed-tools{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    flex-wrap:wrap;
-  }
-  .feed-tool-btn{
-    font-family:var(--mono);
-    font-size:10px;
-    letter-spacing:.04em;
-    text-transform:uppercase;
-    background:transparent;
-    border:1px solid var(--line);
-    color:var(--ink-dim);
-    padding:5px 10px;
-    border-radius:999px;
-    cursor:pointer;
-    transition:border-color .2s ease, color .2s ease, background .2s ease;
-  }
-  .feed-tool-btn:hover{
-    border-color:var(--wire-amber);
-    color:var(--wire-amber);
-  }
-  .feed-tool-btn.on{
-    background:var(--wire-amber);
-    border-color:var(--wire-amber);
-    color:#0d0d0c;
-  }
 
   /* HERO — birinchi story (index 0) katta blok bo'lib chiqadi, screenshot'dagi
      rasm+katta sarlavha kabi. GNews rasm bermasa ham joy egallab turadi,
@@ -410,8 +406,8 @@ try{
     height:148px;
     min-height:148px;
     aspect-ratio:1;
-    background:var(--paper-raised);
-    border:2px solid color-mix(in srgb, var(--wire-red) 55%, var(--line));
+    background:var(--thumb-bg);
+    border:2px solid var(--thumb-border);
     border-radius:18px;
     overflow:hidden;
     position:relative;
@@ -449,9 +445,9 @@ try{
     align-items:center;
     justify-content:center;
     gap:0;
-    background:transparent;
-    border:1px solid var(--line);
-    color:var(--ink-dim);
+    background:var(--control-bg);
+    border:1px solid var(--control-border);
+    color:var(--control-ink);
     font-family:var(--serif);
     font-size:16px;
     cursor:pointer;
@@ -459,10 +455,18 @@ try{
     width:34px;
     height:34px;
     border-radius:10px;
-    transition:color .28s ease, border-color .28s ease, transform .28s ease;
+    transition:color .28s ease, border-color .28s ease, background-color .28s ease, transform .28s ease;
   }
-  .card-more:hover{ color:var(--wire-amber); border-color:var(--wire-amber); }
-  .story.open .card-more{ color:var(--wire-amber); border-color:var(--wire-amber); }
+  .card-more:hover{
+    background:var(--control-bg-hover);
+    color:var(--control-ink-hover);
+    border-color:var(--control-border-on);
+  }
+  .story.open .card-more{
+    background:var(--control-bg-on);
+    color:var(--control-ink-on);
+    border-color:var(--control-border-on);
+  }
   .card-actions{
     display:flex;
     align-items:center;
@@ -471,9 +475,9 @@ try{
     margin-top:auto;
   }
   .later-btn{
-    background:transparent;
-    border:1px solid var(--line);
-    color:var(--ink-dim);
+    background:var(--control-bg);
+    border:1px solid var(--control-border);
+    color:var(--control-ink);
     width:34px;
     height:34px;
     border-radius:10px;
@@ -481,25 +485,28 @@ try{
     align-items:center;
     justify-content:center;
     cursor:pointer;
-    transition:background-color .25s ease, border-color .25s ease, color .25s ease, transform .2s ease, box-shadow .25s ease;
+    transition:background-color .25s ease, border-color .25s ease, color .25s ease, transform .2s ease;
   }
   .later-btn svg{ width:16px; height:16px; fill:none; stroke:currentColor; transition:fill .2s ease; }
-  .later-btn:hover{ border-color:var(--wire-amber); color:var(--wire-amber); }
-  /* Saqlangan — butun tugma orange, doim shunday turadi */
+  .later-btn:hover{
+    background:var(--control-bg-hover);
+    border-color:var(--control-border-on);
+    color:var(--control-ink-hover);
+  }
+  /* Saqlangan — theme tokenlari orqali (dark: orange fill, light: oq + orange icon) */
   .later-btn.on{
-    background:var(--wire-amber);
-    border-color:var(--wire-amber);
-    color:#0d0d0c;
-    box-shadow:0 0 0 1px color-mix(in srgb, var(--wire-amber) 40%, transparent);
+    background:var(--control-bg-on);
+    border-color:var(--control-border-on);
+    color:var(--control-ink-on);
   }
   .later-btn.on svg{
     fill:currentColor;
     stroke:currentColor;
   }
   .later-btn.on:hover{
-    background:color-mix(in srgb, var(--wire-amber) 88%, #fff);
-    border-color:color-mix(in srgb, var(--wire-amber) 88%, #fff);
-    color:#0d0d0c;
+    background:var(--control-bg-on);
+    border-color:var(--control-border-on);
+    color:var(--control-ink-on);
   }
   .card-more svg{ width:16px; height:16px; transition:transform .35s ease; }
   .story.open .card-more svg{ transform:rotate(180deg); }
@@ -553,7 +560,7 @@ try{
     border:none;
     border-radius:14px;
     background:var(--wire-green);
-    color:#0d0d0c;
+    color:var(--on-accent);
     display:inline-flex;
     align-items:center;
     justify-content:center;
@@ -639,7 +646,7 @@ try{
     -webkit-line-clamp:unset;
     overflow:visible;
   }
-  html[data-theme="light"] .story p.desc{ color:#2f2a22; }
+  .story p.desc{ color:var(--desc); }
 
   /* SIDEBAR — "Oxirgi ochilganlar". Scroll qilganda sticky bo'lib
      ekranda qoladi (header ostida). */
@@ -992,7 +999,7 @@ try{
   .chat-input-row button{
     background:var(--wire-amber);
     border:none;
-    color:#0d0d0c;
+    color:var(--on-accent);
     padding:0 14px;
     font-family:var(--mono);
     font-weight:700;
@@ -1146,7 +1153,7 @@ try{
     main{ padding:16px 14px 60px; }
     nav.top-nav{ gap:4px; }
     nav.top-nav .hdr-btn{ width:36px; height:36px; padding:6px; border-radius:10px; }
-    .brand-logo{ width:40px; height:40px; border-radius:10px; }
+
   }
 
   /* Markdown render qilingan matn uchun uslub — h2/h3, bold, ro'yxatlar
@@ -1186,7 +1193,8 @@ try{
   <div class="masthead-row">
     <div class="brand">
       <h1>
-        <img class="brand-logo" src="favicon.svg" width="48" height="48" alt="FMN">
+        <span class="blink" title="Yangiliklar jonli" aria-hidden="true"></span>
+        FMN
       </h1>
     </div>
     <nav class="top-nav" aria-label="Asosiy navigatsiya">
@@ -1265,11 +1273,7 @@ try{
   <div id="feed-col">
     <div id="feed-meta">
       <span id="feedLabel">Bugungi to'plam</span>
-      <div class="feed-tools">
-        <button type="button" id="unreadFilterBtn" class="feed-tool-btn" title="Faqat o'qilmaganlar" aria-pressed="false">O'qilmagan</button>
-        <button type="button" id="revealToggleBtn" class="feed-tool-btn" title="AI matn animatsiyasi" aria-pressed="false">Tez matn</button>
-        <span id="feedCount">0 TA YANGILIK</span>
-      </div>
+      <span id="feedCount">0 TA YANGILIK</span>
     </div>
     <div id="feed">
       <div class="placeholder">YUKLANMOQDA<span class="cursor"></span></div>
@@ -1356,56 +1360,13 @@ import {
   }
   try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
 
-  // AI javobi: so'zma-so'z (ixtiyoriy) yoki darhol. wordRevealOn=false → tez.
+  // AI javobi — darhol (animatsiyasiz)
   async function revealWordsSmooth(el, text, opts = {}){
-    pinScroll(1200);
+    pinScroll(400);
     const safe = (text || '').toString();
-    const asMd = !!opts.markdown;
-    if(!wordRevealOn){
-      if(asMd) renderMd(el, safe);
-      else el.textContent = safe;
-      pinScroll(200);
-      return;
-    }
-    const delay = opts.delay != null ? opts.delay : 38;
-    if(!safe.trim()){
-      if(asMd) renderMd(el, safe);
-      else el.textContent = safe;
-      return;
-    }
-    const parts = safe.split(/(\s+)/);
-    el.innerHTML = '';
-    el.classList.add('word-reveal');
-    const frag = document.createDocumentFragment();
-    const spans = [];
-    for(const p of parts){
-      if(!p) continue;
-      if(/^\s+$/.test(p)){
-        frag.appendChild(document.createTextNode(p));
-      }else{
-        const span = document.createElement('span');
-        span.className = 'wr-word';
-        span.textContent = p;
-        span.style.opacity = '0';
-        frag.appendChild(span);
-        spans.push(span);
-      }
-    }
-    el.appendChild(frag);
-    for(let i = 0; i < spans.length; i++){
-      spans[i].style.animationDelay = '0s';
-      spans[i].style.opacity = '';
-      spans[i].classList.add('wr-word');
-      void spans[i].offsetWidth;
-      spans[i].style.animation = 'wordIn .28s ease forwards';
-      pinScroll(400);
-      await new Promise(r => setTimeout(r, delay));
-    }
-    el.classList.remove('word-reveal');
-    if(asMd){
-      renderMd(el, safe);
-    }
-    pinScroll(300);
+    if(opts.markdown) renderMd(el, safe);
+    else el.textContent = safe;
+    pinScroll(200);
   }
 
   // =========================================================
@@ -1466,8 +1427,7 @@ import {
   const PREF_READ = 'fmn-read';
   const PREF_LATER = 'fmn-later';
   const PREF_OPENED = 'fmn-opened';
-  const PREF_UNREAD = 'fmn-unread-only';
-  const PREF_REVEAL = 'fmn-word-reveal'; // '1' = so'zma-so'z animatsiya, default tez
+
 
   function readList(key){
     try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
@@ -1558,8 +1518,6 @@ import {
       localStorage.setItem(PREF_TRANSLATE, translateModeOn ? '1' : '0');
       localStorage.setItem(PREF_VISIBLE + '-' + currentMode, String(visibleCount));
       localStorage.setItem(PREF_PAGE + '-' + currentMode, String(gnewsPage));
-      localStorage.setItem(PREF_UNREAD, unreadOnly ? '1' : '0');
-      localStorage.setItem(PREF_REVEAL, wordRevealOn ? '1' : '0');
     }catch(e){}
   }
 
@@ -1574,9 +1532,6 @@ import {
       visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
       const pg = parseInt(localStorage.getItem(PREF_PAGE + '-' + currentMode) || '', 10);
       gnewsPage = pg >= 1 ? pg : 1;
-      unreadOnly = localStorage.getItem(PREF_UNREAD) === '1';
-      // Default: tez matn (animatsiya o'chiq). '1' bo'lsa so'zma-so'z
-      wordRevealOn = localStorage.getItem(PREF_REVEAL) === '1';
     }catch(e){}
   }
 
@@ -1592,8 +1547,6 @@ import {
   // initialization" xatosi chiqadi.
   let translateModeOn = false;
   let isTranslating = false;
-  let unreadOnly = false;
-  let wordRevealOn = false; // false = tez (default)
   const originalTexts = {}; // idx -> { title, desc } — original matnlar
 
   function tickClock(){
@@ -2009,14 +1962,11 @@ import {
       : '';
 
     const noMoreBtn = opts.history || opts.saved;
-    let list = articles || [];
-    if(unreadOnly && !opts.history){
-      list = list.filter(a => a && a.id && !isRead(a.id));
-    }
+    const list = articles || [];
     if(!list.length){
       const emptyMsg = opts.saved
-        ? (unreadOnly ? 'O\'QILMAGAN SAQLANGAN YO\'Q' : 'SAQLANGAN YANGILIK YO\'Q — bookmark tugmasini bosing')
-        : (unreadOnly ? 'O\'QILMAGAN YANGILIK YO\'Q — filtrni o\'chiring' : 'BU KUN UCHUN YANGILIK TOPILMADI');
+        ? 'SAQLANGAN YANGILIK YO\'Q — bookmark tugmasini bosing'
+        : 'BU KUN UCHUN YANGILIK TOPILMADI';
       feedEl.innerHTML = backNav + `<div class="placeholder">${emptyMsg}</div>`
         + (noMoreBtn ? '' : `<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn" title="Yana 5 ta">${MORE_BTN_HTML}</button></div>`);
       feedCount.textContent = '0 TA YANGILIK';
@@ -2026,7 +1976,7 @@ import {
       return;
     }
     const shown = (opts.history || opts.saved) ? list : list.slice(0, visibleCount);
-    feedCount.textContent = shown.length + ' TA YANGILIK' + (unreadOnly ? ' (o\'qilmagan)' : '');
+    feedCount.textContent = shown.length + ' TA YANGILIK';
     // Bratishka, MUHIM: birinchi story (i===0) endi ".hero" klassi bilan
     // chiqadi — katta rasm-o'rni + katta sarlavha, screenshot'dagidek.
     // ID'lar (title-link-${i}, desc-${i} va h.k.) HECH O'ZGARMAGAN — shuning
@@ -2043,9 +1993,11 @@ import {
         : pubDate;
       const desc = a.description ? escapeHtml(a.description) : '';
       const isHero = i === 0 && !opts.history && !opts.saved;
-      const imgUrl = a.image || a.imageUrl || a.urlToImage || '';
+      let imgUrl = a.image || a.imageUrl || a.urlToImage || '';
+      if(imgUrl && imgUrl.indexOf('http://') === 0) imgUrl = 'https://' + imgUrl.slice(7);
+      // Rasm: avval to'g'ridan-to'g'ri, xato bo'lsa wsrv.nl proxy, yana xato — manba nomi
       const thumb = imgUrl
-        ? `<div class="story-thumb"><img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(a.title || src)}" loading="${isHero ? 'eager' : 'lazy'}" onerror="this.remove()"></div>`
+        ? `<div class="story-thumb" data-fallback="${escapeHtml(src)}"><img src="${escapeHtml(imgUrl)}" data-orig="${escapeHtml(imgUrl)}" alt="" loading="${isHero ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer" onerror="(function(img){if(!img.dataset.try){img.dataset.try='1';img.referrerPolicy='no-referrer';img.src='https://wsrv.nl/?url='+encodeURIComponent(img.dataset.orig)+'&w=400&output=webp';return;}var p=img.parentElement;img.remove();if(p)p.textContent=p.getAttribute('data-fallback')||'';})(this)"></div>`
         : `<div class="story-thumb">${escapeHtml(src)}</div>`;
       return `
         <article class="story${isHero ? ' hero' : ''}${isRead(a.id) ? ' read' : ''}" data-idx="${realIdx}" data-id="${a.id}">
@@ -3003,41 +2955,6 @@ QATIY USLUB:
       if(translateLabel) translateLabel.textContent = 'ORIG';
     }
   }catch(e){}
-
-  const unreadBtn = document.getElementById('unreadFilterBtn');
-  const revealBtn = document.getElementById('revealToggleBtn');
-  function syncToolBtns(){
-    if(unreadBtn){
-      unreadBtn.classList.toggle('on', unreadOnly);
-      unreadBtn.setAttribute('aria-pressed', unreadOnly ? 'true' : 'false');
-    }
-    if(revealBtn){
-      // "Tez matn" ON = animatsiya OFF
-      const fast = !wordRevealOn;
-      revealBtn.classList.toggle('on', fast);
-      revealBtn.setAttribute('aria-pressed', fast ? 'true' : 'false');
-      revealBtn.textContent = fast ? 'Tez matn' : 'Sekin matn';
-    }
-  }
-  syncToolBtns();
-  if(unreadBtn){
-    unreadBtn.addEventListener('click', () => {
-      unreadOnly = !unreadOnly;
-      savePrefs();
-      syncToolBtns();
-      if(currentMode === 'saved') loadSavedFeed();
-      else if(currentMode === 'history'){ /* kunlar ro'yxati — o'zgarmaydi */ }
-      else if(currentArticles.length) renderFeed(currentArticles);
-      else loadFeed();
-    });
-  }
-  if(revealBtn){
-    revealBtn.addEventListener('click', () => {
-      wordRevealOn = !wordRevealOn;
-      savePrefs();
-      syncToolBtns();
-    });
-  }
 
   if(currentMode === 'history'){
     feedLabel.textContent = "TARIX — KUNLARNI TANLA";
