@@ -22,12 +22,34 @@
 
   *{margin:0;padding:0;box-sizing:border-box;}
 
+  html{
+    scrollbar-width:thin;               /* Firefox — tor va neytral */
+    scrollbar-color:var(--line) var(--paper);
+  }
+
   body{
     background:var(--paper);
     color:var(--ink);
     font-family:var(--serif);
     min-height:100vh;
     -webkit-font-smoothing:antialiased;
+  }
+
+  /* Butun sayt bo'ylab bitta xira, tor, dark-theme scrollbar —
+     brauzerning default oq/qalin scrollbari umuman chiqmasin. */
+  ::-webkit-scrollbar{
+    width:8px;
+    height:8px;
+  }
+  ::-webkit-scrollbar-track{
+    background:var(--paper);
+  }
+  ::-webkit-scrollbar-thumb{
+    background:var(--line);
+    border-radius:4px;
+  }
+  ::-webkit-scrollbar-thumb:hover{
+    background:var(--ink-dim);
   }
 
   header{
@@ -287,6 +309,129 @@
     color:var(--ink);
   }
 
+  /* =========================================================
+     MARKDOWN RENDER STYLES — Bratishka, bu joy juda muhim:
+     marked.js xom HTML qaytaradi (<h2>, <strong>, <ul> va h.k.),
+     lekin brauzer default stillari bu dark-theme'ga umuman mos
+     emas (katta bo'shliqlar, oq bo'lmagan ranglar, notekis list).
+     Shu klass AI javob chiqadigan HAR IKKALA joyga (.ai-body va
+     .chat-msg.ai) qo'llanadi — pastdagi ".md-content" selectori
+     ikkalasini ham qamrab oladi.
+  ========================================================= */
+  .ai-body, .chat-msg.ai{
+    word-wrap:break-word;
+    overflow-wrap:break-word;
+  }
+  .ai-body > *:first-child, .chat-msg.ai > *:first-child{margin-top:0;}
+  .ai-body > *:last-child, .chat-msg.ai > *:last-child{margin-bottom:0;}
+
+  .ai-body p, .chat-msg.ai p{
+    margin:0 0 10px;
+  }
+  .ai-body h1, .ai-body h2, .ai-body h3, .ai-body h4,
+  .chat-msg.ai h1, .chat-msg.ai h2, .chat-msg.ai h3, .chat-msg.ai h4{
+    font-family:var(--mono);
+    color:var(--wire-amber);
+    letter-spacing:.02em;
+    line-height:1.35;
+    margin:16px 0 8px;
+  }
+  .ai-body h1:first-child, .ai-body h2:first-child, .ai-body h3:first-child,
+  .chat-msg.ai h1:first-child, .chat-msg.ai h2:first-child, .chat-msg.ai h3:first-child{
+    margin-top:0;
+  }
+  .ai-body h1, .chat-msg.ai h1{font-size:17px;}
+  .ai-body h2, .chat-msg.ai h2{font-size:15.5px;}
+  .ai-body h3, .ai-body h4, .chat-msg.ai h3, .chat-msg.ai h4{font-size:14px;}
+
+  .ai-body strong, .chat-msg.ai strong{
+    color:var(--ink);
+    font-weight:700;
+  }
+  .ai-body em, .chat-msg.ai em{
+    color:var(--ink);
+    font-style:italic;
+  }
+
+  .ai-body ul, .ai-body ol,
+  .chat-msg.ai ul, .chat-msg.ai ol{
+    margin:0 0 10px;
+    padding-left:22px;
+  }
+  .ai-body li, .chat-msg.ai li{
+    margin-bottom:5px;
+    line-height:1.55;
+  }
+  .ai-body li::marker, .chat-msg.ai li::marker{
+    color:var(--wire-amber);
+  }
+
+  .ai-body a, .chat-msg.ai a{
+    color:var(--wire-green);
+    text-decoration:underline;
+    text-underline-offset:2px;
+  }
+  .ai-body a:hover, .chat-msg.ai a:hover{
+    color:var(--wire-amber);
+  }
+
+  .ai-body code, .chat-msg.ai code{
+    font-family:var(--mono);
+    font-size:.9em;
+    background:var(--paper);
+    border:1px solid var(--line);
+    padding:1px 5px;
+    border-radius:3px;
+    color:var(--wire-amber);
+  }
+  .ai-body pre, .chat-msg.ai pre{
+    font-family:var(--mono);
+    font-size:12.5px;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:10px 12px;
+    overflow-x:auto;
+    margin:0 0 10px;
+  }
+  .ai-body pre code, .chat-msg.ai pre code{
+    background:none;
+    border:none;
+    padding:0;
+  }
+
+  .ai-body blockquote, .chat-msg.ai blockquote{
+    border-left:2px solid var(--wire-green);
+    padding-left:10px;
+    margin:0 0 10px;
+    color:var(--ink-dim);
+    font-style:italic;
+  }
+
+  .ai-body hr, .chat-msg.ai hr{
+    border:none;
+    border-top:1px solid var(--line);
+    margin:14px 0;
+  }
+
+  .ai-body table, .chat-msg.ai table{
+    width:100%;
+    border-collapse:collapse;
+    margin:0 0 10px;
+    font-size:.92em;
+  }
+  .ai-body th, .ai-body td, .chat-msg.ai th, .chat-msg.ai td{
+    border:1px solid var(--line);
+    padding:6px 8px;
+    text-align:left;
+  }
+  .ai-body th, .chat-msg.ai th{
+    color:var(--wire-amber);
+    font-family:var(--mono);
+    font-size:.85em;
+    text-transform:uppercase;
+  }
+
   .chat-panel{
     margin-top:10px;
     display:none;
@@ -324,7 +469,6 @@
     color:#c9c8bd;
     border-left:2px solid var(--wire-green);
     padding-left:10px;
-    white-space:pre-wrap;
   }
   .chat-input-row{
     display:flex;
