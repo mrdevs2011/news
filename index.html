@@ -144,7 +144,14 @@ try{
     align-items:center;
     gap:10px;
     flex-shrink:0;
+    cursor:pointer;
+    user-select:none;
+    border-radius:10px;
+    padding:4px 6px 4px 2px;
+    transition:opacity .2s ease, background-color .2s ease;
   }
+  .brand:hover{ opacity:.85; }
+  .brand:active{ opacity:.7; }
   .brand .dot{
     width:10px;height:10px;border-radius:50%;
     background:var(--wire-red);
@@ -222,14 +229,12 @@ try{
   html[data-theme="light"] .icon-moon{display:none;}
   .ai-btn svg{width:14px;height:14px;display:block;flex-shrink:0;}
 
-  /* TARIX va SAVED tabida "Oxirgi ochilganlar" sidebar yashirin */
+  /* TARIX va SAVED: sidebar ko'rinmas, lekin joyi saqlanadi —
+     feed kengayib "cho'zilmasin" (layout sakramasini) */
   body.mode-history aside#trending,
   body.mode-saved aside#trending{
-    display:none !important;
-  }
-  body.mode-history main,
-  body.mode-saved main{
-    grid-template-columns:1fr;
+    visibility:hidden;
+    pointer-events:none;
   }
 
   .masthead-top{
@@ -574,9 +579,14 @@ try{
   .story.hero .story-thumb{
     width:100%;
     height:auto;
-    min-height:280px;
+    min-height:200px;
+    max-height:320px;
     aspect-ratio:16/9;
     border-radius:20px;
+  }
+  .story.hero .story-thumb img{
+    object-fit:cover;
+    max-height:320px;
   }
   .story.hero .story-index{
     display:flex;
@@ -642,14 +652,13 @@ try{
   }
   .story p.desc{ color:var(--desc); }
 
-  /* SIDEBAR — "Oxirgi ochilganlar". Scroll qilganda sticky bo'lib
-     ekranda qoladi (header ostida). */
+  /* SIDEBAR — doim sticky (header ostida qoladi) */
   aside#trending{
-    position:sticky;
-    top:88px;
+    position:sticky !important;
+    top:72px;
     z-index:20;
     align-self:start;
-    max-height:calc(100vh - 100px);
+    max-height:calc(100vh - 88px);
     overflow-y:auto;
     overscroll-behavior:contain;
   }
@@ -1115,7 +1124,11 @@ try{
 
   @media (max-width:900px){
     main{ grid-template-columns:1fr; }
-    aside#trending{ position:static; }
+    aside#trending{
+      position:sticky !important;
+      top:64px;
+      max-height:calc(100vh - 72px);
+    }
     nav.top-nav{ gap:5px; }
     nav.top-nav .hdr-btn{ width:38px; height:38px; padding:8px; }
     nav.top-nav .hdr-ico, nav.top-nav .hdr-ico svg{ width:16px; height:16px; }
@@ -1185,23 +1198,13 @@ try{
 
 <header>
   <div class="masthead-row">
-    <div class="brand">
+    <div class="brand" id="brandHome" title="Yangilash — bosh sahifa" role="button" tabindex="0">
       <h1>
         <span class="blink" title="Yangiliklar jonli" aria-hidden="true"></span>
         FMN
       </h1>
     </div>
     <nav class="top-nav" aria-label="Asosiy navigatsiya">
-      <button type="button" class="hdr-btn tab-btn active" data-mode="home" title="Yangiliklar" aria-label="Yangiliklar">
-        <span class="hdr-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-            <path d="M8 7h8M8 11h8M8 15h5"/>
-          </svg>
-        </span>
-        <span class="hdr-label">News</span>
-      </button>
       <button type="button" class="hdr-btn tab-btn" data-mode="saved" title="Saqlanganlar" aria-label="Saqlanganlar">
         <span class="hdr-ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1595,6 +1598,33 @@ import {
   function setBodyMode(mode){
     document.body.classList.toggle('mode-history', mode === 'history');
     document.body.classList.toggle('mode-saved', mode === 'saved');
+  }
+
+  // Logo / FMN — qaysi tabda bo'lsangiz ham: News + qayta yuklash
+  function goHomeAndRefresh(){
+    tabs.forEach(b => b.classList.remove('active'));
+    currentMode = 'home';
+    setBodyMode('home');
+    visibleCount = INITIAL_FEED;
+    gnewsPage = 1;
+    try{ savePrefs(); }catch(_){}
+    if(feedLabel) feedLabel.textContent = "Bugungi to'plam";
+    try{ window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }
+    catch(_){ try{ window.scrollTo(0, 0); }catch(__){} }
+    loadFeed();
+  }
+  const brandEl = document.getElementById('brandHome');
+  if(brandEl){
+    brandEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      goHomeAndRefresh();
+    });
+    brandEl.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        goHomeAndRefresh();
+      }
+    });
   }
 
   tabs.forEach(btn => {
