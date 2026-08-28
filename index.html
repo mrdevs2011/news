@@ -710,7 +710,9 @@ import {
             </div>
 
             <div class="ai-panel" id="ai-panel-${i}">
-              <div class="ai-tag"><span>AI TUSHUNTIRISHI</span><span></span></div>
+              <div class="ai-tag"><span>TARJIMA</span><span></span></div>
+              <div class="ai-body" id="ai-translate-body-${i}"></div>
+              <div class="ai-tag" style="margin-top:12px;"><span>AI TUSHUNTIRISHI</span><span></span></div>
               <div class="ai-body" id="ai-body-${i}"></div>
             </div>
 
@@ -827,11 +829,17 @@ import {
       if(doc && doc.explainResult){
         const panel = document.getElementById(`ai-panel-${idx}`);
         const body = document.getElementById(`ai-body-${idx}`);
+        const translateBody = document.getElementById(`ai-translate-body-${idx}`);
         const btn = document.querySelector(`[data-action="explain"][data-idx="${idx}"]`);
         if(panel && body){
+          if(translateBody){
+            const tTitle = doc.translatedTitle || '';
+            const tDesc = doc.translatedDesc || '';
+            translateBody.textContent = tTitle + (tDesc ? ('\n\n' + tDesc) : '');
+          }
           body.textContent = doc.explainResult;
           panel.classList.add('show');
-          if(btn) btn.textContent = '🇺🇿 Qayta tarjima qilish';
+          if(btn) btn.textContent = '🇺🇿 Tarjima + Tushuntirish (keshdan)';
         }
       }
     }catch(e){
@@ -846,26 +854,86 @@ import {
   }
 
   // =========================================================
-  // 3) "TARJIMA + TUSHUNTIRISH" — natija Firestore'ga keshlanadi
+  // 3) "TARJIMA + TUSHUNTIRISH"
+  //    Ikki bosqich, ikkalasi ham bir marta ishlaydi, natija Firestore'da
+  //    keshlanadi:
+  //    1-bosqich: /api/translate (Google Translate, AI EMAS, bepul) —
+  //               sarlavha+tavsifni o'zbekchaga tarjima qiladi, ekranda
+  //               tepada ko'rsatiladi.
+  //    2-bosqich: Groq (/api/ai-chat) — o'sha tarjima asosida batafsil
+  //               tushuntirish yozadi (auto-detect qilib, har doim o'zbekcha
+  //               javob beradi).
+  //    Ikkalasi ham tugagach bittada Firestore'ga yoziladi. Keyingi safar
+  //    tugma bosilganda — yoki sahifa qayta ochilganda (restoreCachedState) —
+  //    Firestore'da explainResult borligi tekshiriladi va bor bo'lsa
+  //    /api/translate HAM, Groq HAM UMUMAN CHAQIRILMAYDI, faqat DOM'ga
+  //    keshdagi matn qo'yiladi.
   // =========================================================
   async function handleExplain(idx, btn){
     const a = currentArticles[idx];
     if(!a) return;
     const panel = document.getElementById(`ai-panel-${idx}`);
     const body = document.getElementById(`ai-body-${idx}`);
+    const translateBody = document.getElementById(`ai-translate-body-${idx}`);
 
     btn.disabled = true;
-    btn.textContent = '⏳ ISHLANMOQDA...';
     panel.classList.add('show');
+
+    // 0-qadam: Firestore keshini tekshiramiz — bor bo'lsa na tarjima,
+    // na Groq chaqirilmaydi, to'g'ridan-to'g'ri keshdan chiqadi.
+    try{
+      const cached = await getArticleDoc(a.id);
+      if(cached && cached.explainResult){
+        const tTitle = cached.translatedTitle || '';
+        const tDesc = cached.translatedDesc || '';
+        translateBody.textContent = tTitle + (tDesc ? ('\n\n' + tDesc) : '');
+        body.textContent = cached.explainResult;
+        btn.textContent = '🇺🇿 Tarjima + Tushuntirish (keshdan)';
+        btn.disabled = false;
+        return;
+      }
+    }catch(e){
+      console.warn('Kesh tekshirishda xato (davom etamiz):', e.message);
+    }
+
+    // 1-qadam: haqiqiy tarjima (Google Translate, key kerak emas, Groq bilan
+    // aloqasi yo'q — shuning uchun Groq band bo'lsa ham bu qadam ishlaydi).
+    btn.textContent = '⏳ TARJIMA QILINMOQDA...';
+    translateBody.textContent = 'Tarjima qilinmoqda...';
+    body.textContent = '';
+
+    let titleUz = a.title || '';
+    let descUz = a.description || '';
+    try{
+      const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: [{ id: 0, title: a.title || '', desc: a.description || '' }],
+          target: 'uz'
+        })
+      });
+      const tBody = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(tBody.error || `Tarjima xatoligi (HTTP ${res.status})`);
+      const t = (tBody.translations || [])[0];
+      if(t){ titleUz = t.title || titleUz; descUz = t.desc || descUz; }
+      translateBody.textContent = titleUz + (descUz ? ('\n\n' + descUz) : '');
+    }catch(err){
+      translateBody.textContent = 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.';
+    }
+
+    // 2-qadam: Groq — endi asl matn emas, TARJIMA QILINGAN o'zbekcha matn
+    // asosida ishlaydi. Til qanday bo'lishidan qat'i nazar (auto-detect),
+    // javobni har doim faqat o'zbek tilida yozishi qattiq talab qilinadi.
+    btn.textContent = '⏳ TUSHUNTIRILMOQDA...';
     body.textContent = 'AI javob tayyorlayapti...';
 
-    const sys = `Sen tajribali xalqaro yangiliklar sharhlovchisisan. Foydalanuvchiga ingliz/rus tilidagi yangilikni O'ZBEK TILIDA quyidagi tartibda taqdim et:
-1) Sarlavha tarjimasi (qalin emas, oddiy matn)
-2) 3-5 gapli batafsil tushuntirish: nima bo'ldi, nega muhim, fon (context)
-3) Agar tegishli bo'lsa — bu voqea nimaga olib kelishi mumkinligi haqida qisqa fikr
-Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
+    const sys = `Sen tajribali xalqaro yangiliklar sharhlovchisisan. Foydalanuvchi senga allaqachon o'zbek tiliga tarjima qilingan sarlavha va tavsifni beradi (lekin asl til har xil bo'lishi mumkin — ingliz, rus va h.k., buni avtomatik aniqlab ol). Javobingni QATIYAN FAQAT O'ZBEK TILIDA yoz, boshqa hech qanday tilda emas. Quyidagi tartibda javob ber:
+1) 3-5 gapli batafsil tushuntirish: nima bo'ldi, nega muhim, fon (context)
+2) Agar tegishli bo'lsa — bu voqea nimaga olib kelishi mumkinligi haqida qisqa fikr
+Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qilib o'tirma — foydalanuvchi uni allaqachon ko'rgan, sen faqat tushuntir.`;
 
-    const userMsg = `Sarlavha: ${a.title || ''}\nTavsif: ${a.description || ''}\nManba: ${sourceName(a)}`;
+    const userMsg = `Sarlavha (o'zbekcha): ${titleUz}\nTavsif (o'zbekcha): ${descUz}\nManba: ${sourceName(a)}`;
 
     try{
       const result = await aiChat([
@@ -873,12 +941,17 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
         { role: 'user', content: userMsg }
       ]);
       body.textContent = result || 'AI bo\'sh javob qaytardi.';
-      btn.textContent = '🇺🇿 Qayta tarjima qilish';
+      btn.textContent = '🇺🇿 Tarjima + Tushuntirish (keshdan)';
 
-      // Natijani Firestore'ga yozamiz — keyingi safar shu articlega qaytilsa
-      // AI'ni qayta chaqirmasdan shu yerdan o'qiymiz.
-      try{ await saveExplainResult(a.id, result || ''); }
-      catch(e){ console.warn('explainResult saqlanmadi:', e.message); }
+      // Natijani (tarjima + tushuntirish) birgalikda Firestore'ga yozamiz —
+      // keyingi safar shu article uchun 0-qadam buni topadi va na tarjima,
+      // na Groq qayta chaqirilmaydi.
+      try{
+        await saveTranslation(a.id, titleUz, descUz);
+        await saveExplainResult(a.id, result || '');
+      }catch(e){
+        console.warn('explainResult/tarjima saqlanmadi:', e.message);
+      }
 
     }catch(err){
       body.textContent = 'XATOLIK: ' + err.message;
