@@ -2,69 +2,230 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Yangiliklar — hamma o'qiy oladi (public feed). Yozish faqat to'g'ri
-    // formatda bo'lsa ruxsat etiladi. O'chirish taqiqlangan — arxiv sifatida saqlanadi.
+    // =========================================================
+    // FMN — Firestore Security Rules
+    //
+    // Arxitektura: autentifikatsiya YO'Q (public news feed).
+    // Himoya: maydon validatsiyasi, o'lcham limitlari, o'zgarmas
+    // maydonlar, array o'sish cheklovi, noma'lum collection'lar
+    // default deny.
+    //
+    // Collections:
+    //   articles/{id}           — yangilik + tarjima + AI + muhokama
+    //   articles/{id}/chats/{m} — legacy chat (hozir asosan aiMuhokama)
+    //   days/{YYYY-MM-DD}       — TARIX kun markerlari
+    //   sync/{date_mode_slot}   — GNews slot lock (04/12/20)
+    // =========================================================
+
+    function isStr(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    function optStr(data, key, max) {
+      return !(key in data) || isStr(data[key], max);
+    }
+
+    function optInt(data, key) {
+      return !(key in data) || data[key] is int;
+    }
+
+    function optTs(data, key) {
+      return !(key in data) || data[key] is timestamp;
+    }
+
+    function dateKeyOk(v) {
+      return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function modeOk(v) {
+      return v in ['global', 'local'];
+    }
+
+    function slotOk(v) {
+      // Bo'sh string ham (eski yozuvlar / no-slot)
+      return v in ['04', '12', '20'] || v == '';
+    }
+
+    // Article da ruxsat etilgan maydonlar (whitelist)
+    function articleAllowedKeys(data) {
+      return data.keys().hasOnly([
+        'title', 'description', 'url', 'image', 'source', 'publishedAt',
+        'mode', 'dateKey', 'slot', 'fetchedAt',
+        'originalText', 'uzText', 'translatedTitle', 'translatedDesc',
+        'aiSharh', 'explainResult', 'aiMuhokama'
+      ]);
+    }
+
+    // Asosiy maydonlar tipi va o'lchami
+    function articleFieldsOk(data) {
+      return isStr(data.title, 500)
+        && isStr(data.url, 2000)
+        && data.url.size() > 0
+        && modeOk(data.mode)
+        && optStr(data, 'description', 5000)
+        && optStr(data, 'image', 2000)
+        && optStr(data, 'source', 200)
+        && optStr(data, 'publishedAt', 80)
+        && (
+          !('dateKey' in data)
+          || data.dateKey == ''
+          || dateKeyOk(data.dateKey)
+        )
+        && (!('slot' in data) || slotOk(data.slot))
+        && optTs(data, 'fetchedAt')
+        && optStr(data, 'originalText', 8000)
+        && optStr(data, 'uzText', 8000)
+        && optStr(data, 'translatedTitle', 500)
+        && optStr(data, 'translatedDesc', 5000)
+        && optStr(data, 'aiSharh', 12000)
+        && optStr(data, 'explainResult', 12000)
+        && (!('aiMuhokama' in data) || muhokamaOk(data.aiMuhokama));
+    }
+
+    // Chat xabarlar ro'yxati: max 80, har element map + role/content limit
+    function muhokamaOk(list) {
+      return list is list
+        && list.size() <= 80;
+    }
+
+    // Yangi qo'shilgan oxirgi xabar (arrayUnion) — role/content tekshiruvi
+    function lastMuhokamaMsgOk(newList) {
+      return newList is list
+        && newList.size() > 0
+        && newList[newList.size() - 1].keys().hasOnly(['role', 'content', 'createdAtMs'])
+        && newList[newList.size() - 1].role in ['user', 'assistant']
+        && isStr(newList[newList.size() - 1].content, 4000)
+        && newList[newList.size() - 1].createdAtMs is int;
+    }
+
+    // O'zgarmas maydon: eski qiymat bor bo'lsa yangisi teng bo'lishi shart
+    function immutableStr(newData, oldData, key) {
+      return !(key in oldData)
+        || !(key in newData)
+        || newData[key] == oldData[key];
+    }
+
+    // ---- articles ----
     match /articles/{articleId} {
+      // Public feed — o'qish ochiq
       allow read: if true;
-      allow create: if isValidArticle(request.resource.data);
-      allow update: if isValidArticleUpdate(request.resource.data, resource.data);
+
+      // Yangi yangilik (GNews upsert)
+      allow create: if articleId is string
+        && articleId.size() >= 8
+        && articleId.size() <= 64
+        && articleAllowedKeys(request.resource.data)
+        && request.resource.data.keys().hasAll(['title', 'url', 'mode', 'fetchedAt'])
+        && articleFieldsOk(request.resource.data)
+        // Create paytida AI/chat spam qilmaslik — faqat feed maydonlari
+        && !('aiSharh' in request.resource.data)
+        && !('explainResult' in request.resource.data)
+        && !('aiMuhokama' in request.resource.data);
+
+      // Merge update: tarjima, AI sharh, chat, qayta upsert
+      allow update: if articleAllowedKeys(request.resource.data)
+        && articleFieldsOk(request.resource.data)
+        // Identifikator maydonlar o'zgarmas
+        && request.resource.data.url == resource.data.url
+        && request.resource.data.mode == resource.data.mode
+        // Bir marta yozilgan matnlar qayta yozilmasin (token/spam himoya)
+        && immutableStr(request.resource.data, resource.data, 'originalText')
+        && immutableStr(request.resource.data, resource.data, 'uzText')
+        && immutableStr(request.resource.data, resource.data, 'translatedTitle')
+        && immutableStr(request.resource.data, resource.data, 'translatedDesc')
+        && immutableStr(request.resource.data, resource.data, 'aiSharh')
+        && immutableStr(request.resource.data, resource.data, 'explainResult')
+        // aiMuhokama: faqat o'sishi mumkin, bir yozuvda +0..+2 xabar, max 80
+        && (
+          !('aiMuhokama' in request.resource.data)
+          || (
+            !('aiMuhokama' in resource.data)
+            && request.resource.data.aiMuhokama is list
+            && request.resource.data.aiMuhokama.size() <= 2
+            && lastMuhokamaMsgOk(request.resource.data.aiMuhokama)
+          )
+          || (
+            resource.data.aiMuhokama is list
+            && request.resource.data.aiMuhokama is list
+            && request.resource.data.aiMuhokama.size() >= resource.data.aiMuhokama.size()
+            && request.resource.data.aiMuhokama.size() <= resource.data.aiMuhokama.size() + 2
+            && request.resource.data.aiMuhokama.size() <= 80
+            && (
+              request.resource.data.aiMuhokama.size() == resource.data.aiMuhokama.size()
+              || lastMuhokamaMsgOk(request.resource.data.aiMuhokama)
+            )
+          )
+        );
+
+      // Arxiv — o'chirish taqiqlangan
       allow delete: if false;
 
-      // Har article ostidagi chat xabarlari
+      // Legacy subcollection (yangi kod asosan aiMuhokama ishlatadi)
       match /chats/{messageId} {
         allow read: if true;
-        allow create: if isValidChatMessage(request.resource.data);
-        allow update, delete: if false; // chat tarixi o'zgarmas
+        allow create: if request.resource.data.keys().hasOnly(['role', 'content', 'createdAt', 'createdAtMs'])
+          && request.resource.data.role in ['user', 'assistant']
+          && isStr(request.resource.data.content, 4000)
+          && (
+            (
+              'createdAt' in request.resource.data
+              && request.resource.data.createdAt is timestamp
+            )
+            || (
+              'createdAtMs' in request.resource.data
+              && request.resource.data.createdAtMs is int
+            )
+          );
+        allow update, delete: if false;
       }
     }
 
-    // Kunlar arxivi — TARIX bo'limi shu yerdan "qaysi kunlar mavjud"ligini
-    // o'qiydi. Marker document, hech qanday maxfiy narsa yo'q — ochiq o'qish/yozish.
+    // ---- days (TARIX marker) ----
     match /days/{date} {
       allow read: if true;
-      allow create, update: if request.resource.data.keys().hasOnly(['date'])
+      allow create, update: if dateKeyOk(date)
+        && request.resource.data.keys().hasOnly(['date'])
         && request.resource.data.date is string
-        && request.resource.data.date == date; // doc id bilan mos kelishi shart — spoof qilib bo'lmaydi
+        && request.resource.data.date == date;
       allow delete: if false;
     }
 
-    // GNews slot keshi — kuniga 3 marta (04/12/20 UZ). Hamma o'qiydi,
-    // yozish faqat ruxsat etilgan maydonlar bilan.
+    // ---- sync (GNews slot lock: YYYY-MM-DD_mode_slot) ----
     match /sync/{syncId} {
       allow read: if true;
-      allow create, update: if request.resource.data.dateKey is string
-        && request.resource.data.mode in ['global', 'local']
+
+      allow create, update: if request.resource.data.keys().hasOnly([
+          'status', 'dateKey', 'mode', 'slot',
+          'startedAtMs', 'startedAt', 'finishedAt',
+          'count', 'error'
+        ])
+        && dateKeyOk(request.resource.data.dateKey)
+        && modeOk(request.resource.data.mode)
         && request.resource.data.slot in ['04', '12', '20']
-        && request.resource.data.status in ['pending', 'done', 'error'];
+        && request.resource.data.status in ['pending', 'done', 'error']
+        // Doc id spoofing: id = dateKey_mode_slot
+        && syncId == request.resource.data.dateKey
+            + '_' + request.resource.data.mode
+            + '_' + request.resource.data.slot
+        && optInt(request.resource.data, 'startedAtMs')
+        && optTs(request.resource.data, 'startedAt')
+        && optTs(request.resource.data, 'finishedAt')
+        && (
+          !('count' in request.resource.data)
+          || (
+            request.resource.data.count is int
+            && request.resource.data.count >= 0
+            && request.resource.data.count <= 500
+          )
+        )
+        && optStr(request.resource.data, 'error', 500);
+
       allow delete: if false;
     }
-  }
 
-  function isValidArticle(data) {
-    return data.keys().hasAll(['title', 'url', 'mode', 'fetchedAt'])
-      && data.title is string && data.title.size() < 500
-      && data.url is string && data.url.size() < 1000
-      && data.mode in ['global', 'local']
-      && (!('explainResult' in data) || (data.explainResult is string && data.explainResult.size() < 8000))
-      && (!('aiSharh' in data) || (data.aiSharh is string && data.aiSharh.size() < 8000))
-      && (!('aiMuhokama' in data) || data.aiMuhokama is list)
-      && (!('translatedTitle' in data) || (data.translatedTitle is string && data.translatedTitle.size() < 500))
-      && (!('translatedDesc' in data) || (data.translatedDesc is string && data.translatedDesc.size() < 3000))
-      && (!('originalText' in data) || (data.originalText is string && data.originalText.size() < 4000))
-      && (!('uzText' in data) || (data.uzText is string && data.uzText.size() < 4000))
-      && (!('dateKey' in data) || (data.dateKey is string && data.dateKey.size() <= 10));
-  }
-
-  function isValidArticleUpdate(newData, oldData) {
-    // Mavjud article ustiga yozilganda url o'zgarmasligi kerak (bir xil doc = bir xil yangilik)
-    return isValidArticle(newData)
-      && (!('url' in oldData) || newData.url == oldData.url);
-  }
-
-  function isValidChatMessage(data) {
-    return data.keys().hasAll(['role', 'content', 'createdAt'])
-      && data.role in ['user', 'assistant']
-      && data.content is string && data.content.size() < 3000
-      && data.createdAt == request.time; // server timestamp bo'lishi shart, spoof qilib bo'lmaydi
+    // ---- Default: hamma narsa yopiq ----
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
