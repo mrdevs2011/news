@@ -892,9 +892,17 @@ import {
   loadChatHistory,
   appendChatMessage,
   saveTranslation,
+  packText,
+  unpackText,
+  articleOriginal,
+  articleUz,
   markDay,
   getRecentDays,
-  getArticlesByDate
+  getArticlesByDate,
+  getArticlesByDateMode,
+  claimNewsSlot,
+  finishNewsSlot,
+  waitForNewsSlot
 } from './firebase-init.js';
 
 (function(){
@@ -1003,11 +1011,38 @@ import {
     });
   });
 
-  // Bugungi kunni "YYYY-MM-DD" formatida qaytaradi — Firestore'da article'larni
-  // kunlarga ajratish shu kalit bo'yicha ishlaydi (mahalliy vaqt, UTC emas).
+  // O'zbekiston vaqti (Asia/Tashkent, UTC+5).
+  function uzNow(){
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Tashkent',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', hour12: false
+    }).formatToParts(new Date());
+    const g = (t) => parts.find(p => p.type === t).value;
+    return {
+      dateKey: `${g('year')}-${g('month')}-${g('day')}`,
+      hour: Number(g('hour'))
+    };
+  }
+
   function todayKey(){
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return uzNow().dateKey;
+  }
+
+  function yesterdayKey(dateKey){
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - 1);
+    return dt.toISOString().slice(0, 10);
+  }
+
+  // 04:00, 12:00, 20:00 dan keyin — shu slot. 00:00–03:59 da kechagi 20:00.
+  function currentNewsSlot(){
+    const { dateKey, hour } = uzNow();
+    if (hour >= 20) return { dateKey, slot: '20' };
+    if (hour >= 12) return { dateKey, slot: '12' };
+    if (hour >= 4) return { dateKey, slot: '04' };
+    return { dateKey: yesterdayKey(dateKey), slot: '20' };
   }
 
   // "2026-08-27" -> "27-avgust, 2026, payshanba" ko'rinishida chiqaradi.
@@ -1025,48 +1060,155 @@ import {
     return typeof a.source === 'string' ? (a.source || "NOMA'LUM") : (a.source.name || "NOMA'LUM");
   }
 
+  async function showCachedFeed(dateKey, note){
+    const cached = await getArticlesByDateMode(dateKey, currentMode);
+    currentArticles = cached.map(cleanArticleText);
+    if(!currentArticles.length){
+      feedEl.innerHTML = '<div class="placeholder">FIRESTORE\'DA HALI YANGILIK YO\'Q<br>SLOT VAQTI KELGANDA GNEWS\'DAN OLINADI</div>';
+      feedCount.textContent = '0 TA YANGILIK';
+      statusLine.textContent = note || 'KESH BO\'SH';
+      return false;
+    }
+    renderFeed(currentArticles);
+    statusLine.textContent = note || ('FIRESTORE — ' + dateKey + ' / SLOT ' + (currentNewsSlot().slot) + ':00');
+    fillMissingUzTranslations(currentArticles).catch(e => console.warn('uzText to\'ldirish:', e.message));
+    return true;
+  }
+
+  // originalText bor, uzText yo'q — faqat shularni bir marta tarjima qilib saqlaydi.
+  async function fillMissingUzTranslations(articles){
+    if(!articles || !articles.length) return;
+    const missing = [];
+    for(const a of articles){
+      const orig = articleOriginal(a);
+      if(!orig.title) continue;
+      if(articleUz(a)) continue;
+      try{
+        const doc = await getArticleDoc(a.id);
+        const uz = articleUz(doc);
+        if(uz && uz.title){
+          a.uzText = doc.uzText || packText(uz.title, uz.desc);
+          a.originalText = doc.originalText || packText(orig.title, orig.desc);
+          continue;
+        }
+        if(doc && !doc.originalText){
+          await saveTranslation(a.id, '', '', orig.title, orig.desc);
+        }
+      }catch(e){}
+      missing.push({ a, orig });
+    }
+    if(!missing.length) return;
+
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: missing.map((m, i) => ({ id: i, title: m.orig.title, desc: m.orig.desc })),
+        target: 'uz'
+      })
+    });
+    if(!res.ok) return;
+    const body = await res.json().catch(() => ({}));
+    const translated = body.translations || [];
+    await Promise.all(translated.map(async (item) => {
+      const m = missing[item.id];
+      if(!m) return;
+      try{
+        await saveTranslation(m.a.id, item.title || '', item.desc || '', m.orig.title, m.orig.desc);
+        m.a.uzText = packText(item.title || '', item.desc || '');
+        m.a.originalText = packText(m.orig.title, m.orig.desc);
+      }catch(e){
+        console.warn('uzText saqlanmadi:', e.message);
+      }
+    }));
+    if(translateModeOn){
+      currentArticles.forEach((a, i) => {
+        const uz = articleUz(a);
+        if(uz && uz.title) applyTranslation(i, uz.title, uz.desc);
+      });
+    }
+  }
+
+  async function persistGnewsBatch(rawArticles, dateKey, slot){
+    markDay(dateKey).catch(e => console.warn('kun belgisi yozilmadi:', e.message));
+    const saved = await Promise.all((rawArticles || []).map(async (a) => {
+      const id = await hashUrl(a.url || a.title || Math.random().toString());
+      try{
+        await upsertArticle(id, { ...a, slot }, currentMode, dateKey);
+      }catch(e){
+        console.warn('Firestore upsert xato:', e.message);
+      }
+      return cleanArticleText({ ...a, id, slot });
+    }));
+    return saved;
+  }
+
+  async function fetchGnewsSlot(dateKey, slot){
+    const res = await fetch(`/api/gnews?mode=${currentMode}`);
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    const rawArticles = data.articles || [];
+    await persistGnewsBatch(rawArticles, dateKey, slot);
+    await finishNewsSlot(dateKey, currentMode, slot, { status: 'done', count: rawArticles.length });
+  }
+
   async function loadFeed(){
     statusLine.textContent = 'YUKLANMOQDA...';
-    feedEl.innerHTML = '<div class="placeholder">SO\'ROV YUBORILMOQDA<span class="cursor"></span></div>';
+    feedEl.innerHTML = '<div class="placeholder">FIRESTORE TEKSHIRILMOQDA<span class="cursor"></span></div>';
 
-    // Yangi feed kelyapti — eski article'larning saqlangan original matnlari
-    // endi eskirgan (indekslar boshqa yangiliklarga tegishli bo'lib qoladi).
-    // Tozalab tashlaymiz, aks holda "qaytarish" tugmasi noto'g'ri matn qaytaradi.
     Object.keys(originalTexts).forEach(k => delete originalTexts[k]);
 
-    const url = `/api/gnews?mode=${currentMode}`;
+    const { dateKey, slot } = currentNewsSlot();
 
     try{
-      const res = await fetch(url);
-      const data = await res.json().catch(() => ({}));
-      if(!res.ok){
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-      const rawArticles = data.articles || [];
-      const dateKey = todayKey();
+      // 1) Avval bazadan ko'rsatamiz — har kirishda GNews'ga bormaymiz.
+      await showCachedFeed(dateKey, 'FIRESTORE — ' + dateKey + ' / ' + slot + ':00');
 
-      // Kun markerini qo'yamiz — TARIX ro'yxati shu yerdan "bugun feed keldi"
-      // deb biladi. Fire-and-forget: feedni ko'rsatishni bloklamaydi.
-      markDay(dateKey).catch(e => console.warn('kun belgisi yozilmadi:', e.message));
-
-      // Har article uchun barqaror ID chiqaramiz (url hash) va Firestore'ga yozamiz.
-      // Bu qadam sekin bo'lishi mumkin (SHA-256 + Firestore write har birida) —
-      // shuning uchun Promise.all bilan parallel qilamiz.
-      currentArticles = await Promise.all(rawArticles.map(async (a) => {
-        const id = await hashUrl(a.url || a.title || Math.random().toString());
-        // fire-and-forget emas — kutamiz, chunki keyingi qadamda shu id kerak bo'ladi.
-        // Xato bo'lsa ham feed ko'rsatishni to'xtatmaymiz (bazaga yozib bo'lmasa ham,
-        // foydalanuvchi yangilikni o'qishi kerak).
-        try{
-          await upsertArticle(id, a, currentMode, dateKey);
-        }catch(e){
-          console.warn('Firestore upsert xato:', e.message);
+      // 2) Shu slot allaqachon olingan bo'lsa — GNews umuman chaqirilmaydi.
+      let claim;
+      try{
+        claim = await claimNewsSlot(dateKey, currentMode, slot);
+      }catch(e){
+        console.warn('slot claim xato:', e.message);
+        if(currentArticles.length){
+          statusLine.textContent = 'FIRESTORE KESH (SYNC YOZILMADI)';
+          return;
         }
-        return cleanArticleText({ ...a, id });
-      }));
+        statusLine.textContent = 'GNEWS — BIRINCHI YUKLASH...';
+        await fetchGnewsSlot(dateKey, slot);
+        await showCachedFeed(dateKey, 'YANGILANDI — FIRESTORE / SLOT ' + slot + ':00');
+        return;
+      }
 
-      renderFeed(currentArticles);
-      statusLine.textContent = 'LIVE — OXIRGI YANGILANISH: ' + new Date().toLocaleTimeString('uz-UZ',{hour12:false});
+      if(claim.action === 'cached'){
+        statusLine.textContent = 'FIRESTORE KESH — SLOT ' + slot + ':00 ALLAQACHON OLINGAN';
+        return;
+      }
+
+      if(claim.action === 'wait'){
+        statusLine.textContent = 'BOSHQA SO\'ROV GNEWS OLYAPTI — KUTILMOQDA...';
+        const ok = await waitForNewsSlot(dateKey, currentMode, slot);
+        await showCachedFeed(dateKey, ok
+          ? 'FIRESTORE — YANGI SLOT YUKLANDI'
+          : 'FIRESTORE — KUTISH TUGADI');
+        return;
+      }
+
+      // 3) Faqat shu slotning BIRINCHI tashrifi GNews'ga boradi (kuniga 3 marta).
+      statusLine.textContent = 'GNEWS SLOT ' + slot + ':00 — YANGILANMOQDA...';
+      try{
+        await fetchGnewsSlot(dateKey, slot);
+      }catch(err){
+        await finishNewsSlot(dateKey, currentMode, slot, { status: 'error', error: err.message }).catch(() => {});
+        const hadCache = currentArticles.length > 0;
+        if(hadCache){
+          statusLine.textContent = 'GNEWS XATO, KESH KO\'RSATILDI: ' + err.message;
+          return;
+        }
+        throw err;
+      }
+
+      await showCachedFeed(dateKey, 'YANGILANDI — FIRESTORE / SLOT ' + slot + ':00');
     } catch(err){
       console.error(err);
       feedEl.innerHTML = `<div class="error-box">
@@ -1189,11 +1331,18 @@ import {
     if(!list) return;
     const picks = articles.slice(1, 5);
     if(!picks.length){ list.innerHTML = ''; return; }
-    list.innerHTML = picks.map((a, k) => `
+    list.innerHTML = picks.map((a, k) => {
+      const idx = k + 1;
+      const uz = articleUz(a);
+      const title = (translateModeOn && uz && uz.title)
+        ? uz.title
+        : (articleOriginal(a).title || a.title || 'Sarlavhasiz');
+      return `
       <li>
-        <span class="t-num">${k+1}.</span>
-        <a href="#" data-scroll-idx="${k+1}">${escapeHtml(a.title || 'Sarlavhasiz')}</a>
-      </li>`).join('');
+        <span class="t-num">${idx}.</span>
+        <a href="#" id="trend-link-${idx}" data-scroll-idx="${idx}">${escapeHtml(title)}</a>
+      </li>`;
+    }).join('');
     list.querySelectorAll('[data-scroll-idx]').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1270,20 +1419,33 @@ import {
   async function restoreCachedState(articleId, idx){
     try{
       const doc = await getArticleDoc(articleId);
-      if(doc && doc.explainResult){
+      if(doc && (doc.aiSharh || doc.explainResult)){
         const panel = document.getElementById(`ai-panel-${idx}`);
         const body = document.getElementById(`ai-body-${idx}`);
         const translateBody = document.getElementById(`ai-translate-body-${idx}`);
         const btn = document.querySelector(`[data-action="explain"][data-idx="${idx}"]`);
         if(panel && body){
           if(translateBody){
-            const tTitle = doc.translatedTitle || '';
-            const tDesc = doc.translatedDesc || '';
+            const uz = articleUz(doc);
+            const tTitle = uz?.title || '';
+            const tDesc = uz?.desc || '';
             renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
           }
-          renderMd(body, doc.explainResult);
+          renderMd(body, doc.aiSharh || doc.explainResult);
           panel.classList.add('show');
           if(btn) btn.textContent = '🇺🇿 Tarjima + Tushuntirish (keshdan)';
+        }
+      }
+      if(doc && Array.isArray(doc.aiMuhokama) && doc.aiMuhokama.length){
+        const chatPanel = document.getElementById(`chat-panel-${idx}`);
+        const log = document.getElementById(`chat-log-${idx}`);
+        if(chatPanel && log && !log.childElementCount){
+          doc.aiMuhokama
+            .slice()
+            .sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0))
+            .forEach(msg => {
+              appendChatMsg(log, msg.role === 'user' ? 'user' : 'ai', msg.content);
+            });
         }
       }
     }catch(e){
@@ -1312,6 +1474,8 @@ import {
     if(a.description) a.description = decodeHtml(a.description);
     if(a.translatedTitle) a.translatedTitle = decodeHtml(a.translatedTitle);
     if(a.translatedDesc) a.translatedDesc = decodeHtml(a.translatedDesc);
+    if(a.originalText) a.originalText = decodeHtml(a.originalText);
+    if(a.uzText) a.uzText = decodeHtml(a.uzText);
     return a;
   }
 
@@ -1345,11 +1509,12 @@ import {
     // na Groq chaqirilmaydi, to'g'ridan-to'g'ri keshdan chiqadi.
     try{
       const cached = await getArticleDoc(a.id);
-      if(cached && cached.explainResult){
-        const tTitle = cached.translatedTitle || '';
-        const tDesc = cached.translatedDesc || '';
+      if(cached && (cached.aiSharh || cached.explainResult)){
+        const uz = articleUz(cached);
+        const tTitle = uz?.title || '';
+        const tDesc = uz?.desc || '';
         renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
-        renderMd(body, cached.explainResult);
+        renderMd(body, cached.aiSharh || cached.explainResult);
         btn.style.display = 'none';
         return;
       }
@@ -1363,21 +1528,32 @@ import {
     translateBody.textContent = 'Tarjima qilinmoqda...';
     body.textContent = '';
 
-    let titleUz = a.title || '';
-    let descUz = a.description || '';
+    const orig = articleOriginal(a);
+    let titleUz = orig.title;
+    let descUz = orig.desc;
     try{
-      const res = await fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: [{ id: 0, title: a.title || '', desc: a.description || '' }],
-          target: 'uz'
-        })
-      });
-      const tBody = await res.json().catch(() => ({}));
-      if(!res.ok) throw new Error(tBody.error || `Tarjima xatoligi (HTTP ${res.status})`);
-      const t = (tBody.translations || [])[0];
-      if(t){ titleUz = t.title || titleUz; descUz = t.desc || descUz; }
+      const cachedDoc = await getArticleDoc(a.id);
+      const cachedUz = articleUz(cachedDoc || a);
+      if(cachedUz && cachedUz.title){
+        titleUz = cachedUz.title;
+        descUz = cachedUz.desc;
+      }else{
+        const res = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: [{ id: 0, title: orig.title, desc: orig.desc }],
+            target: 'uz'
+          })
+        });
+        const tBody = await res.json().catch(() => ({}));
+        if(!res.ok) throw new Error(tBody.error || `Tarjima xatoligi (HTTP ${res.status})`);
+        const t = (tBody.translations || [])[0];
+        if(t){ titleUz = t.title || titleUz; descUz = t.desc || descUz; }
+        await saveTranslation(a.id, titleUz, descUz, orig.title, orig.desc);
+        a.uzText = packText(titleUz, descUz);
+        a.originalText = packText(orig.title, orig.desc);
+      }
       renderMd(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''));
     }catch(err){
       renderMd(translateBody, 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.');
@@ -1408,7 +1584,8 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
       // keyingi safar shu article uchun 0-qadam buni topadi va na tarjima,
       // na Groq qayta chaqirilmaydi.
       try{
-        await saveTranslation(a.id, titleUz, descUz);
+        const origSave = articleOriginal(a);
+        await saveTranslation(a.id, titleUz, descUz, origSave.title, origSave.desc);
         await saveExplainResult(a.id, result || '');
       }catch(e){
         console.warn('explainResult/tarjima saqlanmadi:', e.message);
@@ -1557,6 +1734,8 @@ QATIY USLUB:
         titleLink.textContent = orig.title;
         titleLink.parentElement.classList.remove('translated');
       }
+      const trend = document.getElementById(`trend-link-${i}`);
+      if(trend) trend.textContent = orig.title;
       if(descEl){
         descEl.textContent = orig.desc;
         descEl.classList.remove('translated');
@@ -1580,6 +1759,8 @@ QATIY USLUB:
       titleLink.textContent = title;
       titleLink.parentElement.classList.add('translated');
     }
+    const trend = document.getElementById(`trend-link-${i}`);
+    if(trend && title) trend.textContent = title;
     if(descEl && desc){
       descEl.textContent = desc;
       descEl.classList.add('translated');
@@ -1609,21 +1790,18 @@ QATIY USLUB:
     // shunda keyinchalik "qaytarish" tugmasi qayerga qaytishni biladi.
     currentArticles.forEach((a, i) => {
       if(!originalTexts[i]){
-        originalTexts[i] = { title: a.title || '', desc: a.description || '' };
+        originalTexts[i] = articleOriginal(a);
       }
     });
 
     try{
-      // 1-qadam: har article uchun Firestore'da keshlangan tarjima bormi tekshiramiz.
-      // Tarix'dan kelgan article'larda bu maydon allaqachon obyekt ichida bo'lishi
-      // mumkin (a.translatedTitle) — lekin ishonchli bo'lish uchun baribir Firestore'dan
-      // o'qiymiz, chunki live feed'da bu maydon article obyektida yo'q.
       const cacheChecks = await Promise.all(currentArticles.map(async (a) => {
         try{
           const doc = await getArticleDoc(a.id);
-          return (doc && doc.translatedTitle) ? { title: doc.translatedTitle, desc: doc.translatedDesc || '' } : null;
+          const uz = articleUz(doc || a);
+          return (uz && uz.title) ? uz : null;
         }catch(e){
-          return null;
+          return articleUz(a);
         }
       }));
 
@@ -1670,7 +1848,10 @@ QATIY USLUB:
           const a = currentArticles[i];
           if(!a) return;
           try{
-            await saveTranslation(a.id, item.title || '', item.desc || '');
+            const orig = originalTexts[i] || articleOriginal(a);
+            await saveTranslation(a.id, item.title || '', item.desc || '', orig.title, orig.desc);
+            a.uzText = packText(item.title || '', item.desc || '');
+            a.originalText = packText(orig.title, orig.desc);
           }catch(e){
             console.warn('tarjima Firestore\'ga saqlanmadi:', e.message);
           }

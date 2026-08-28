@@ -15,7 +15,9 @@ import {
   orderBy,
   where,
   limit,
-  serverTimestamp
+  serverTimestamp,
+  runTransaction,
+  arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -62,10 +64,52 @@ export async function upsertArticle(articleId, article, mode, dateKey) {
       publishedAt: article.publishedAt || "",
       mode,
       dateKey: dateKey || "",
+      slot: article.slot || "",
       fetchedAt: serverTimestamp()
     },
     { merge: true }
   );
+
+  // Original matn faqat bir marta yoziladi — keyin GNews qayta kelsa ham
+  // originalText / uzText o'zgarmaydi.
+  const existing = await getDoc(ref);
+  const data = existing.exists() ? existing.data() : {};
+  const originalText = packText(article.title || "", article.description || "");
+  if (originalText && !data.originalText) {
+    await setDoc(ref, { originalText }, { merge: true });
+  }
+}
+
+export function packText(title, desc) {
+  return `${title || ""}\n\n${desc || ""}`.trim();
+}
+
+export function unpackText(text) {
+  const raw = String(text || "");
+  const i = raw.indexOf("\n\n");
+  if (i < 0) return { title: raw, desc: "" };
+  return { title: raw.slice(0, i), desc: raw.slice(i + 2) };
+}
+
+export function articleOriginal(docOrArticle) {
+  if (!docOrArticle) return { title: "", desc: "" };
+  if (docOrArticle.originalText) return unpackText(docOrArticle.originalText);
+  return {
+    title: docOrArticle.title || "",
+    desc: docOrArticle.description || docOrArticle.desc || ""
+  };
+}
+
+export function articleUz(docOrArticle) {
+  if (!docOrArticle) return null;
+  if (docOrArticle.uzText) return unpackText(docOrArticle.uzText);
+  if (docOrArticle.translatedTitle || docOrArticle.uzTitle) {
+    return {
+      title: docOrArticle.translatedTitle || docOrArticle.uzTitle || "",
+      desc: docOrArticle.translatedDesc || docOrArticle.uzDesc || ""
+    };
+  }
+  return null;
 }
 
 export async function getArticleDoc(articleId) {
@@ -77,11 +121,19 @@ export async function getArticleDoc(articleId) {
 // AI "tarjima+tushuntirish" natijasini keshlab qo'yamiz — token tejash uchun.
 export async function saveExplainResult(articleId, text) {
   const ref = doc(db, "articles", articleId);
-  await setDoc(ref, { explainResult: text }, { merge: true });
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  if (data.aiSharh || data.explainResult) return;
+  const sharh = text || "";
+  if (!sharh) return;
+  await setDoc(ref, { aiSharh: sharh, explainResult: sharh }, { merge: true });
 }
 
-// Chat tarixi — subcollection, cheksiz o'sishi mumkin, 1MB document limitiga urilmaydi.
 export async function loadChatHistory(articleId) {
+  const parent = await getArticleDoc(articleId);
+  if (Array.isArray(parent?.aiMuhokama) && parent.aiMuhokama.length) {
+    return parent.aiMuhokama.slice().sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
+  }
   const ref = collection(db, "articles", articleId, "chats");
   const q = query(ref, orderBy("createdAt", "asc"));
   const snap = await getDocs(q);
@@ -89,12 +141,13 @@ export async function loadChatHistory(articleId) {
 }
 
 export async function appendChatMessage(articleId, role, content) {
-  const ref = collection(db, "articles", articleId, "chats");
-  await addDoc(ref, {
+  const ref = doc(db, "articles", articleId);
+  const msg = {
     role,
-    content,
-    createdAt: serverTimestamp()
-  });
+    content: content || "",
+    createdAtMs: Date.now()
+  };
+  await setDoc(ref, { aiMuhokama: arrayUnion(msg) }, { merge: true });
 }
 
 // ---- Tarjima keshi ----
@@ -102,16 +155,29 @@ export async function appendChatMessage(articleId, role, content) {
 // qayta chaqirilardi, hatto o'sha article ilgari tarjima qilingan bo'lsa ham.
 // Endi natija shu yerda saqlanadi, ikkinchi safar Firestore'dan o'qiladi —
 // AI umuman chaqirilmaydi (token tejaladi, tezroq ishlaydi).
-export async function saveTranslation(articleId, translatedTitle, translatedDesc) {
+export async function saveTranslation(articleId, translatedTitle, translatedDesc, originalTitle, originalDesc) {
   const ref = doc(db, "articles", articleId);
-  await setDoc(
-    ref,
-    {
-      translatedTitle: translatedTitle || "",
-      translatedDesc: translatedDesc || ""
-    },
-    { merge: true }
-  );
+  const snap = await getDoc(ref);
+  const data = snap.exists() ? snap.data() : {};
+  const payload = {};
+
+  if (!data.originalText) {
+    const packedOrig = packText(originalTitle || "", originalDesc || "");
+    if (packedOrig) payload.originalText = packedOrig;
+  }
+
+  if (!data.uzText) {
+    const packedUz = packText(translatedTitle || "", translatedDesc || "");
+    if (packedUz) {
+      payload.uzText = packedUz;
+      payload.translatedTitle = translatedTitle || "";
+      payload.translatedDesc = translatedDesc || "";
+    }
+  }
+
+  if (Object.keys(payload).length) {
+    await setDoc(ref, payload, { merge: true });
+  }
 }
 
 // ---- Tarix (kun bo'yicha arxiv) ----
@@ -145,4 +211,73 @@ export async function getArticlesByDate(dateKey) {
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (b.fetchedAt?.seconds || 0) - (a.fetchedAt?.seconds || 0));
+}
+
+export async function getArticlesByDateMode(dateKey, mode) {
+  const all = await getArticlesByDate(dateKey);
+  return all.filter((a) => !mode || a.mode === mode);
+}
+
+function slotDocId(dateKey, mode, slot) {
+  return `${dateKey}_${mode}_${slot}`;
+}
+
+// Slot holati: done = shu vaqtda GNews allaqachon olingan.
+export async function getNewsSlot(dateKey, mode, slot) {
+  const snap = await getDoc(doc(db, "sync", slotDocId(dateKey, mode, slot)));
+  return snap.exists() ? snap.data() : null;
+}
+
+// Birinchi tashrif buyuruvchi GNews oladi, qolganlari kutadi yoki keshdan o'qiydi.
+export async function claimNewsSlot(dateKey, mode, slot) {
+  const ref = doc(db, "sync", slotDocId(dateKey, mode, slot));
+  return runTransaction(db, async (t) => {
+    const snap = await t.get(ref);
+    const now = Date.now();
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.status === "done") return { action: "cached" };
+      if (d.status === "pending" && d.startedAtMs && now - d.startedAtMs < 180000) {
+        return { action: "wait" };
+      }
+    }
+    t.set(ref, {
+      status: "pending",
+      dateKey,
+      mode,
+      slot,
+      startedAtMs: now,
+      startedAt: serverTimestamp()
+    });
+    return { action: "fetch" };
+  });
+}
+
+export async function finishNewsSlot(dateKey, mode, slot, extra = {}) {
+  const ref = doc(db, "sync", slotDocId(dateKey, mode, slot));
+  await setDoc(
+    ref,
+    {
+      status: extra.status || "done",
+      dateKey,
+      mode,
+      slot,
+      count: extra.count || 0,
+      error: extra.error || "",
+      finishedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
+}
+
+export async function waitForNewsSlot(dateKey, mode, slot, timeoutMs = 25000) {
+  const ref = doc(db, "sync", slotDocId(dateKey, mode, slot));
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const snap = await getDoc(ref);
+    if (snap.exists() && snap.data().status === "done") return true;
+    if (snap.exists() && snap.data().status === "error") return false;
+    await new Promise((r) => setTimeout(r, 900));
+  }
+  return false;
 }

@@ -68,7 +68,18 @@ async function translateMyMemory(text, target) {
   return out;
 }
 
-async function translateOne(text, target) {
+function splitSentences(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+  const parts = raw
+    .split(/\n+/)
+    .flatMap((line) => line.split(/(?<=[.!?…。！？]+)(?:\s+|$)/))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length ? parts : [raw];
+}
+
+async function translateBlock(text, target) {
   if (!text) return '';
   let lastErr = null;
   for (const fn of PROVIDERS) {
@@ -80,6 +91,21 @@ async function translateOne(text, target) {
     }
   }
   throw lastErr || new Error('Hech bir tarjima xizmati ishlamadi');
+}
+
+async function translateOne(text, target) {
+  if (!text) return '';
+  const sentences = splitSentences(text);
+  if (sentences.length <= 1) return translateBlock(text, target);
+
+  const out = [];
+  const CHUNK = 4;
+  for (let i = 0; i < sentences.length; i += CHUNK) {
+    const batch = sentences.slice(i, i + CHUNK);
+    const done = await Promise.all(batch.map((s) => translateBlock(s, target)));
+    out.push(...done);
+  }
+  return out.join(' ').replace(/\s+/g, ' ').trim();
 }
 
 export default async function handler(req, res) {

@@ -27,6 +27,17 @@ service cloud.firestore {
         && request.resource.data.date == date; // doc id bilan mos kelishi shart — spoof qilib bo'lmaydi
       allow delete: if false;
     }
+
+    // GNews slot keshi — kuniga 3 marta (04/12/20 UZ). Hamma o'qiydi,
+    // yozish faqat ruxsat etilgan maydonlar bilan.
+    match /sync/{syncId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.dateKey is string
+        && request.resource.data.mode in ['global', 'local']
+        && request.resource.data.slot in ['04', '12', '20']
+        && request.resource.data.status in ['pending', 'done', 'error'];
+      allow delete: if false;
+    }
   }
 
   function isValidArticle(data) {
@@ -34,9 +45,13 @@ service cloud.firestore {
       && data.title is string && data.title.size() < 500
       && data.url is string && data.url.size() < 1000
       && data.mode in ['global', 'local']
-      && (!('explainResult' in data) || (data.explainResult is string && data.explainResult.size() < 5000))
+      && (!('explainResult' in data) || (data.explainResult is string && data.explainResult.size() < 8000))
+      && (!('aiSharh' in data) || (data.aiSharh is string && data.aiSharh.size() < 8000))
+      && (!('aiMuhokama' in data) || data.aiMuhokama is list)
       && (!('translatedTitle' in data) || (data.translatedTitle is string && data.translatedTitle.size() < 500))
       && (!('translatedDesc' in data) || (data.translatedDesc is string && data.translatedDesc.size() < 3000))
+      && (!('originalText' in data) || (data.originalText is string && data.originalText.size() < 4000))
+      && (!('uzText' in data) || (data.uzText is string && data.uzText.size() < 4000))
       && (!('dateKey' in data) || (data.dateKey is string && data.dateKey.size() <= 10));
   }
 
