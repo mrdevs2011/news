@@ -323,20 +323,33 @@ try{
      rasm+katta sarlavha kabi. GNews rasm bermasa ham joy egallab turadi,
      kelajakda <img> qo'shsang shu joyga tushadi. */
   .story{
-    padding:22px 0;
-    border-bottom:1px solid var(--line);
+    padding:14px;
+    margin-bottom:16px;
+    border:1px solid var(--line);
+    border-radius:22px;
+    background:var(--paper-raised);
     display:grid;
-    grid-template-columns:240px 1fr;
-    gap:22px;
-    align-items:stretch;
+    grid-template-columns:148px 1fr;
+    grid-template-areas:
+      "pic body"
+      "more more";
+    gap:12px 16px;
+    align-items:start;
+    transition:box-shadow .28s ease, border-color .28s ease;
+  }
+  .story:hover{ box-shadow:var(--shadow); }
+  .story-top{
+    display:contents;
   }
   .story-thumb{
-    width:100%;
-    min-height:168px;
-    aspect-ratio:4/3;
+    grid-area:pic;
+    width:148px;
+    height:148px;
+    min-height:148px;
+    aspect-ratio:1;
     background:var(--paper-raised);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
+    border:2px solid color-mix(in srgb, var(--wire-red) 55%, var(--line));
+    border-radius:18px;
     overflow:hidden;
     position:relative;
     display:flex;
@@ -358,15 +371,84 @@ try{
     transition:transform .45s ease;
   }
   .story:hover .story-thumb img{ transform:scale(1.04); }
-  .story-body{ min-width:0; }
+  .story-body{
+    grid-area:body;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    padding-bottom:0;
+  }
+  .card-more{
+    align-self:flex-end;
+    margin-top:auto;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:transparent;
+    border:none;
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:16px;
+    cursor:pointer;
+    padding:4px 2px;
+    transition:color .28s ease, transform .28s ease;
+  }
+  .card-more:hover{ color:var(--wire-amber); }
+  .card-more svg{ width:16px; height:16px; transition:transform .28s ease; }
+  .story.open .card-more svg{ transform:rotate(180deg); }
+  .story-more{
+    grid-area:more;
+    display:none;
+    margin-top:2px;
+    width:100%;
+  }
+  .story.open .story-more{ display:block; }
+  .story-more-box{
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:16px 16px 12px;
+    background:var(--paper);
+  }
+  .ask-row{
+    display:flex;
+    gap:8px;
+    margin-top:12px;
+    align-items:center;
+  }
+  .ask-row input{
+    flex:1;
+    background:var(--paper-raised);
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:10px 14px;
+    font-family:var(--serif);
+    font-size:14px;
+    border-radius:16px;
+  }
+  .ask-row input:focus{ outline:none; border-color:var(--wire-amber); }
+  .ask-row button{
+    width:42px;
+    height:42px;
+    border:none;
+    border-radius:14px;
+    background:var(--wire-green);
+    color:#0d0d0c;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .ask-row button svg{ width:18px; height:18px; }
   .story.hero{
-    grid-template-columns:minmax(280px, 1.05fr) 1.15fr;
-    padding:0 0 26px;
-    margin-bottom:10px;
+    padding:16px;
+    grid-template-columns:160px 1fr;
   }
   .story.hero .story-thumb{
-    min-height:260px;
-    aspect-ratio:16/11;
+    width:160px;
+    height:160px;
+    min-height:160px;
+    aspect-ratio:1;
   }
   .story.hero .story-index{
     display:flex;
@@ -827,8 +909,19 @@ try{
   }
 
   @media (max-width:600px){
-    .story, .story.hero{grid-template-columns:1fr; gap:12px;}
-    .story-thumb, .story.hero .story-thumb{ min-height:180px; aspect-ratio:16/9; }
+    .story, .story.hero{
+      grid-template-columns:1fr;
+      grid-template-areas:
+        "pic"
+        "body"
+        "more";
+    }
+    .story-thumb, .story.hero .story-thumb{
+      width:100%;
+      height:auto;
+      min-height:180px;
+      aspect-ratio:16/9;
+    }
     .story-index{display:flex; gap:8px; align-items:center;}
     .story-index .src{margin-top:0;}
     .story.hero h2{ font-size:22px; }
@@ -1457,31 +1550,36 @@ import {
         : `<div class="story-thumb">${escapeHtml(src)}</div>`;
       return `
         <article class="story${isHero ? ' hero' : ''}" data-idx="${i}" data-id="${a.id}">
+          <div class="story-top">
           ${thumb}
           <div class="story-body">
           <div class="story-index">${num}<span class="src">${escapeHtml(src)}</span></div>
             <h2 id="title-${i}"><a href="${a.url}" target="_blank" rel="noopener" id="title-link-${i}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
             <p class="desc" id="desc-${i}">${desc}</p>
             <div class="meta">${date}</div>
-
-            <div class="ai-toolbar">
-              ${(a.aiSharh || a.explainResult) ? '' : `<button class="ai-btn" data-action="explain" data-idx="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v12H7l-3 3z"/></svg> Tarjima + Tushuntirish</button>`}
-              <button class="ai-btn" data-action="discuss" data-idx="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg> Muhokama qilish</button>
-            </div>
-
-            <div class="ai-panel" id="ai-panel-${i}">
-              <div class="ai-tag"><span>TARJIMA</span><span></span></div>
-              <div class="ai-body" id="ai-translate-body-${i}"></div>
-              <div class="ai-tag" style="margin-top:12px;"><span>AI TUSHUNTIRISHI</span><span></span></div>
-              <div class="ai-body" id="ai-body-${i}"></div>
-            </div>
-
-            <div class="chat-panel" id="chat-panel-${i}">
-              <div class="chat-log" id="chat-log-${i}"></div>
-              <div class="chat-input-row">
-                <input type="text" id="chat-input-${i}" placeholder="Bu yangilik haqida savol yoz...">
-                <button data-action="send" data-idx="${i}">YUBOR</button>
+            <button type="button" class="card-more" data-action="more" data-idx="${i}">
+              <span class="card-more-label">More</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+          </div>
+          <div class="story-more" id="story-more-${i}">
+            <div class="story-more-box">
+              <div class="ai-panel show" id="ai-panel-${i}">
+                <div class="ai-tag"><span>TARJIMA</span><span></span></div>
+                <div class="ai-body" id="ai-translate-body-${i}"></div>
+                <div class="ai-tag" style="margin-top:12px;"><span>AI TUSHUNTIRISHI</span><span></span></div>
+                <div class="ai-body" id="ai-body-${i}"></div>
               </div>
+              <div class="chat-panel show" id="chat-panel-${i}">
+                <div class="chat-log" id="chat-log-${i}"></div>
+              </div>
+            </div>
+            <div class="ask-row">
+              <input type="text" id="chat-input-${i}" placeholder="ask ai...">
+              <button data-action="send" data-idx="${i}" title="Yuborish">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></svg>
+              </button>
             </div>
           </div>
         </article>`;
@@ -1493,11 +1591,8 @@ import {
     // Bosilsa story'ga scroll qiladi — tashqi link emas, ichki navigatsiya.
     renderTrending(articles);
 
-    feedEl.querySelectorAll('[data-action="explain"]').forEach(btn => {
-      btn.addEventListener('click', () => handleExplain(Number(btn.dataset.idx), btn));
-    });
-    feedEl.querySelectorAll('[data-action="discuss"]').forEach(btn => {
-      btn.addEventListener('click', () => toggleDiscuss(Number(btn.dataset.idx)));
+    feedEl.querySelectorAll('[data-action="more"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleCardMore(Number(btn.dataset.idx)));
     });
     feedEl.querySelectorAll('[data-action="send"]').forEach(btn => {
       btn.addEventListener('click', () => handleSend(Number(btn.dataset.idx)));
@@ -1636,8 +1731,6 @@ import {
             renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
           }
           renderMd(body, doc.aiSharh || doc.explainResult);
-          panel.classList.add('show');
-          if(btn) btn.remove();
         }
       }
       if(doc && Array.isArray(doc.aiMuhokama) && doc.aiMuhokama.length){
@@ -1699,14 +1792,26 @@ import {
   //    /api/translate HAM, Groq HAM UMUMAN CHAQIRILMAYDI, faqat DOM'ga
   //    keshdagi matn qo'yiladi.
   // =========================================================
+  async function toggleCardMore(idx){
+    const card = document.querySelector(`.story[data-idx="${idx}"]`);
+    if(!card) return;
+    const open = card.classList.toggle('open');
+    const label = card.querySelector('.card-more-label');
+    if(label) label.textContent = 'More';
+    if(open){
+      await toggleDiscuss(idx);
+      await handleExplain(idx);
+    }
+  }
+
   async function handleExplain(idx, btn){
     const a = currentArticles[idx];
     if(!a) return;
     const panel = document.getElementById(`ai-panel-${idx}`);
     const body = document.getElementById(`ai-body-${idx}`);
     const translateBody = document.getElementById(`ai-translate-body-${idx}`);
-
-    btn.disabled = true;
+    if(!panel || !body || !translateBody) return;
+    if(btn) btn.disabled = true;
     panel.classList.add('show');
 
     // 0-qadam: Firestore keshini tekshiramiz — bor bo'lsa na tarjima,
@@ -1719,7 +1824,6 @@ import {
         const tDesc = uz?.desc || '';
         renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
         renderMd(body, cached.aiSharh || cached.explainResult);
-        btn.remove();
         return;
       }
     }catch(e){
@@ -1728,7 +1832,7 @@ import {
 
     // 1-qadam: haqiqiy tarjima (Google Translate, key kerak emas, Groq bilan
     // aloqasi yo'q — shuning uchun Groq band bo'lsa ham bu qadam ishlaydi).
-    btn.textContent = 'TARJIMA QILINMOQDA...';
+    if(btn) btn.textContent = 'TARJIMA QILINMOQDA...';
     translateBody.textContent = 'Tarjima qilinmoqda...';
     body.textContent = '';
 
@@ -1766,7 +1870,7 @@ import {
     // 2-qadam: Groq — endi asl matn emas, TARJIMA QILINGAN o'zbekcha matn
     // asosida ishlaydi. Til qanday bo'lishidan qat'i nazar (auto-detect),
     // javobni har doim faqat o'zbek tilida yozishi qattiq talab qilinadi.
-    btn.textContent = 'TUSHUNTIRILMOQDA...';
+    if(btn) btn.textContent = 'TUSHUNTIRILMOQDA...';
     body.textContent = 'AI javob tayyorlayapti...';
 
     const sys = `Sen tajribali xalqaro yangiliklar sharhlovchisisan. Foydalanuvchi senga allaqachon o'zbek tiliga tarjima qilingan sarlavha va tavsifni beradi (lekin asl til har xil bo'lishi mumkin — ingliz, rus va h.k., buni avtomatik aniqlab ol). Javobingni QATIYAN FAQAT O'ZBEK TILIDA yoz, boshqa hech qanday tilda emas. Quyidagi tartibda javob ber:
@@ -1782,7 +1886,6 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
         { role: 'user', content: userMsg }
       ]);
       renderMd(body, result || 'AI bo\'sh javob qaytardi.');
-      btn.remove();
 
       // Natijani (tarjima + tushuntirish) birgalikda Firestore'ga yozamiz —
       // keyingi safar shu article uchun 0-qadam buni topadi va na tarjima,
@@ -1799,8 +1902,10 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
       // Bratishka, MUHIM: xato bo'lganda tugmani yashirmaymiz — aks holda
       // odam qayta urinib ko'ra olmay qoladi. Faqat muvaffaqiyatda yo'qoladi.
       body.textContent = 'XATOLIK: ' + err.message;
-      btn.textContent = 'Tarjima + Tushuntirish';
-      btn.disabled = false;
+      if(btn){
+        btn.textContent = 'Tarjima + Tushuntirish';
+        btn.disabled = false;
+      }
     }
   }
 
@@ -1814,9 +1919,8 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
 
   async function toggleDiscuss(idx){
     const panel = document.getElementById(`chat-panel-${idx}`);
-    const wasHidden = !panel.classList.contains('show');
-    panel.classList.toggle('show');
-    if(!wasHidden) return; // yopilyapti — qayta yuklash shart emas
+    if(panel) panel.classList.add('show');
+    if(chatLoaded[idx] && chatHistories[idx]) return;
 
     const a = currentArticles[idx];
     if(!chatHistories[idx]){
