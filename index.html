@@ -97,6 +97,53 @@
     letter-spacing:0.05em;
   }
 
+  .translate-btn{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    font-family:var(--mono);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.05em;
+    padding:7px 12px;
+    cursor:pointer;
+    transition:.15s;
+    border-radius:2px;
+  }
+  .translate-btn:hover{border-color:var(--wire-amber); color:var(--wire-amber);}
+  .translate-btn.active{
+    background:var(--wire-green);
+    border-color:var(--wire-green);
+    color:#0d0d0c;
+  }
+  .translate-btn.loading{
+    opacity:.6;
+    cursor:wait;
+  }
+  .translate-btn svg{
+    animation:none;
+  }
+  .translate-btn.loading svg{
+    animation:spin 1s linear infinite;
+  }
+  @keyframes spin{
+    100%{transform:rotate(360deg);}
+  }
+  .desc.translated, h2.translated a{
+    color: var(--wire-green);
+  }
+  .translated-badge{
+    font-family:var(--mono);
+    font-size:9px;
+    color:var(--wire-green);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    margin-left:6px;
+  }
+
   .tabs{
     display:flex;
     gap:0;
@@ -360,6 +407,14 @@
   <div class="masthead-title">
     <h1><span class="blink"></span>WIRE</h1>
     <div class="status-line" id="statusLine">TERMINAL IDLE</div>
+    <button id="translateAllBtn" class="translate-btn" title="Barchasini o'zbekchaga tarjima qilish">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <span id="translateAllLabel">UZ TARJIMA</span>
+    </button>
   </div>
   <div class="tabs">
     <button class="tab-btn active" data-mode="global">🌍 Global</button>
@@ -456,6 +511,16 @@ import {
   let refreshTimer = null;
   let currentArticles = []; // hozirgi feed'dagi maqolalar, {..., id} bilan (id = hashUrl natijasi)
 
+  // "UZ TARJIMA" holati — bu yerda e'lon qilinadi, chunki loadFeed()
+  // pastroqdagi translateAllArticles()/originalTexts'ga murojaat qiladi.
+  // JS function declaration'lar hoisted bo'ladi, lekin let/const bilan
+  // e'lon qilingan o'zgaruvchilar bo'lmaydi — shuning uchun bularni
+  // ENG BOSHIDA e'lon qilish kerak, aks holda "Cannot access before
+  // initialization" xatosi chiqadi.
+  let translateModeOn = false;
+  let isTranslating = false;
+  const originalTexts = {}; // idx -> { title, desc } — original matnlar
+
   function tickClock(){
     const now = new Date();
     document.getElementById('clock').textContent = now.toLocaleTimeString('uz-UZ', {hour12:false});
@@ -476,6 +541,11 @@ import {
   async function loadFeed(){
     statusLine.textContent = 'YUKLANMOQDA...';
     feedEl.innerHTML = '<div class="placeholder">SO\'ROV YUBORILMOQDA<span class="cursor"></span></div>';
+
+    // Yangi feed kelyapti — eski article'larning saqlangan original matnlari
+    // endi eskirgan (indekslar boshqa yangiliklarga tegishli bo'lib qoladi).
+    // Tozalab tashlaymiz, aks holda "qaytarish" tugmasi noto'g'ri matn qaytaradi.
+    Object.keys(originalTexts).forEach(k => delete originalTexts[k]);
 
     const url = `/api/gnews?mode=${currentMode}`;
 
@@ -531,8 +601,8 @@ import {
         <article class="story" data-idx="${i}" data-id="${a.id}">
           <div class="story-index">${num}<span class="src">${escapeHtml(src)}</span></div>
           <div>
-            <h2><a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
-            <p class="desc">${desc}</p>
+            <h2 id="title-${i}"><a href="${a.url}" target="_blank" rel="noopener" id="title-link-${i}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
+            <p class="desc" id="desc-${i}">${desc}</p>
             <div class="meta">${date}</div>
 
             <div class="ai-toolbar">
@@ -577,6 +647,14 @@ import {
     // Sahifa qayta render bo'lganda — avval shu article uchun keshlangan
     // AI tushuntirish yoki chat tarixi bor-yo'qligini Firestore'dan tekshiramiz.
     articles.forEach((a, i) => restoreCachedState(a.id, i));
+
+    // Agar "UZ TARJIMA" rejimi yoqilgan bo'lsa (masalan foydalanuvchi tab
+    // almashtirdi va feed qayta render bo'ldi) — yangi kelgan article'larni
+    // ham avtomatik tarjima qilamiz, aks holda faqat eski feed tarjima
+    // qolib, yangisi original tilda chiqib qoladi — bu chalkash bo'lardi.
+    if(translateModeOn){
+      translateAllArticles();
+    }
   }
 
   // Bazadagi eski explainResult va chat tarixini panelga qayta chiqaramiz,
@@ -731,7 +809,130 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
   }
 
   // =========================================================
-  // 5) AUTO REFRESH + INIT
+  // 5) "UZ TARJIMA" TOGGLE — barcha ko'rinayotgan article'larni
+  //    bitta AI so'rovda (batch) tarjima qilamiz, qayta bossa
+  //    asl (original) matnga qaytaramiz. AI qayta chaqirilmaydi —
+  //    original matn xotirada saqlanadi.
+  // =========================================================
+  const translateBtn = document.getElementById('translateAllBtn');
+  const translateLabel = document.getElementById('translateAllLabel');
+
+  translateBtn.addEventListener('click', () => {
+    if(isTranslating) return; // AI javob kutayotganda qayta bosishni bloklaymiz
+    if(translateModeOn){
+      revertTranslation();
+    }else{
+      translateAllArticles();
+    }
+  });
+
+  // Original matnni original tilga qaytaradi — AI kerak emas, tezkor.
+  function revertTranslation(){
+    currentArticles.forEach((a, i) => {
+      const orig = originalTexts[i];
+      if(!orig) return;
+      const titleLink = document.getElementById(`title-link-${i}`);
+      const descEl = document.getElementById(`desc-${i}`);
+      if(titleLink){
+        titleLink.textContent = orig.title;
+        titleLink.parentElement.classList.remove('translated');
+      }
+      if(descEl){
+        descEl.textContent = orig.desc;
+        descEl.classList.remove('translated');
+        const badge = descEl.parentElement.querySelector('.translated-badge');
+        if(badge) badge.remove();
+      }
+    });
+    translateModeOn = false;
+    translateBtn.classList.remove('active');
+    translateLabel.textContent = 'UZ TARJIMA';
+  }
+
+  // Barcha ko'rinayotgan article'larni BITTA AI so'rovda tarjima qiladi.
+  // Nega bitta so'rov: 15 ta article uchun 15 ta alohida so'rov yubormaymiz —
+  // bu sekin va key limitini tez tugatadi. O'rniga hammasini bitta prompt'ga
+  // joylab, AI'dan JSON massiv qaytarishni so'raymiz.
+  async function translateAllArticles(){
+    if(!currentArticles.length) return;
+    isTranslating = true;
+    translateBtn.classList.add('loading');
+    translateLabel.textContent = 'TARJIMA QILINMOQDA...';
+
+    // Original matnlarni saqlab qo'yamiz (agar hali saqlanmagan bo'lsa) —
+    // shunda keyinchalik "qaytarish" tugmasi qayerga qaytishni biladi.
+    currentArticles.forEach((a, i) => {
+      if(!originalTexts[i]){
+        originalTexts[i] = { title: a.title || '', desc: a.description || '' };
+      }
+    });
+
+    const sys = `Senga yangiliklar ro'yxati JSON massiv sifatida beriladi, har birida "id", "title", "desc" maydonlari bor.
+Har bir "title" va "desc"ni O'ZBEK TILIGA tarjima qil. Ma'noni to'g'ri, tabiiy uzbekcha uslubda ber, so'zma-so'z emas.
+JAVOBING FAQAT JSON MASSIV bo'lishi kerak, boshqa hech qanday matn, izoh, yoki markdown belgisi ("\`\`\`") qo'shma.
+Format: [{"id": 0, "title": "...", "desc": "..."}, ...]
+Massiv uzunligi va "id" tartibi kiruvchi ma'lumot bilan AYNAN bir xil bo'lishi kerak.`;
+
+    const payload = currentArticles.map((a, i) => ({
+      id: i,
+      title: originalTexts[i].title,
+      desc: originalTexts[i].desc
+    }));
+
+    try{
+      const raw = await aiChat([
+        { role: 'system', content: sys },
+        { role: 'user', content: JSON.stringify(payload) }
+      ]);
+
+      // AI ba'zan ```json bilan o'rab yuborishi mumkin — tozalab olamiz.
+      const cleaned = raw.replace(/```json|```/g, '').trim();
+      let translated;
+      try{
+        translated = JSON.parse(cleaned);
+      }catch(parseErr){
+        throw new Error('AI javobi JSON formatda emas: ' + parseErr.message);
+      }
+
+      if(!Array.isArray(translated)){
+        throw new Error('AI JSON massiv qaytarmadi.');
+      }
+
+      translated.forEach(item => {
+        const i = item.id;
+        const titleLink = document.getElementById(`title-link-${i}`);
+        const descEl = document.getElementById(`desc-${i}`);
+        if(titleLink && item.title){
+          titleLink.textContent = item.title;
+          titleLink.parentElement.classList.add('translated');
+        }
+        if(descEl && item.desc){
+          descEl.textContent = item.desc;
+          descEl.classList.add('translated');
+          if(!descEl.parentElement.querySelector('.translated-badge')){
+            const badge = document.createElement('span');
+            badge.className = 'translated-badge';
+            badge.textContent = '(AI tarjima)';
+            descEl.after(badge);
+          }
+        }
+      });
+
+      translateModeOn = true;
+      translateBtn.classList.add('active');
+      translateLabel.textContent = 'ORIGINAL TILGA QAYTARISH';
+    }catch(err){
+      console.error('Translate all xato:', err);
+      statusLine.textContent = 'TARJIMA XATOLIGI: ' + err.message;
+      translateLabel.textContent = 'UZ TARJIMA';
+    }finally{
+      isTranslating = false;
+      translateBtn.classList.remove('loading');
+    }
+  }
+
+  // =========================================================
+  // 6) AUTO REFRESH + INIT
   // =========================================================
   function scheduleRefresh(){
     if(refreshTimer) clearInterval(refreshTimer);
