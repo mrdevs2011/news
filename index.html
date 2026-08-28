@@ -1,15 +1,21 @@
 <!DOCTYPE html>
-<html lang="uz">
+<html lang="uz" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FMN — ForMrNews</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="favicon.svg">
+<script>
+try{
+  var t = localStorage.getItem('fmn-theme');
+  if(t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+}catch(e){}
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
-  :root{
+  :root, html[data-theme="dark"]{
     --paper:#0d0d0c;
     --paper-raised:#161613;
     --ink:#ecebe4;
@@ -18,8 +24,28 @@
     --wire-amber:#d9a441;
     --wire-green:#5a9b6f;
     --line:#2a2a24;
+    --btn:#161616;
+    --btn-hover:#1f1f1f;
+    --radius:14px;
+    --radius-sm:10px;
+    --shadow:0 10px 30px rgba(0,0,0,.28);
     --mono: 'JetBrains Mono', monospace;
     --serif: 'Newsreader', serif;
+    color-scheme: dark;
+  }
+  html[data-theme="light"]{
+    --paper:#f3efe6;
+    --paper-raised:#fffdf8;
+    --ink:#1b1914;
+    --ink-dim:#6d6a60;
+    --wire-red:#c23b2e;
+    --wire-amber:#a87412;
+    --wire-green:#2f6d48;
+    --line:#ddd6c8;
+    --btn:#ffffff;
+    --btn-hover:#f7f3ea;
+    --shadow:0 10px 28px rgba(40,32,16,.08);
+    color-scheme: light;
   }
 
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -29,12 +55,17 @@
     scrollbar-color:var(--line) var(--paper);
   }
 
+  html{
+    background:var(--paper);
+    transition:background-color .35s ease, color .35s ease;
+  }
   body{
     background:var(--paper);
     color:var(--ink);
     font-family:var(--serif);
     min-height:100vh;
     -webkit-font-smoothing:antialiased;
+    transition:background-color .35s ease, color .35s ease;
   }
 
   /* Butun sayt bo'ylab bitta xira, tor, dark-theme scrollbar —
@@ -93,9 +124,9 @@
     display:inline-flex;
     align-items:center;
     gap:8px;
-    background:#141414;
-    border:1px solid #2a2a2a;
-    color:#f2f2f2;
+    background:var(--btn);
+    border:1px solid var(--line);
+    color:var(--ink);
     font-family:var(--mono);
     font-size:12px;
     font-weight:700;
@@ -103,14 +134,15 @@
     text-transform:uppercase;
     padding:10px 16px;
     cursor:pointer;
-    border-radius:8px;
+    border-radius:var(--radius-sm);
     text-decoration:none;
-    transition:.15s;
+    transition:background-color .28s ease, border-color .28s ease, color .28s ease, transform .28s ease, box-shadow .28s ease;
     white-space:nowrap;
   }
   nav.top-nav .hdr-btn:hover{
-    background:#1c1c1c;
-    border-color:#3a3a3a;
+    background:var(--btn-hover);
+    transform:translateY(-1px);
+    box-shadow:var(--shadow);
   }
   nav.top-nav .hdr-btn.active{
     background:var(--wire-red);
@@ -134,6 +166,9 @@
     height:16px;
     display:block;
   }
+  html[data-theme="dark"] .icon-sun{display:none;}
+  html[data-theme="light"] .icon-moon{display:none;}
+  .ai-btn svg{width:14px;height:14px;display:block;flex-shrink:0;}
 
   .masthead-top{
     display:flex;
@@ -287,37 +322,51 @@
   /* HERO — birinchi story (index 0) katta blok bo'lib chiqadi, screenshot'dagi
      rasm+katta sarlavha kabi. GNews rasm bermasa ham joy egallab turadi,
      kelajakda <img> qo'shsang shu joyga tushadi. */
-  .story.hero{
-    display:block;
-    padding:0 0 26px;
+  .story{
+    padding:22px 0;
     border-bottom:1px solid var(--line);
-    margin-bottom:22px;
+    display:grid;
+    grid-template-columns:240px 1fr;
+    gap:22px;
+    align-items:stretch;
   }
-  .story.hero .hero-media{
+  .story-thumb{
     width:100%;
-    aspect-ratio:16/9;
+    min-height:168px;
+    aspect-ratio:4/3;
     background:var(--paper-raised);
     border:1px solid var(--line);
-    border-radius:2px;
+    border-radius:var(--radius);
+    overflow:hidden;
+    position:relative;
     display:flex;
     align-items:center;
     justify-content:center;
     font-family:var(--mono);
-    font-size:11px;
+    font-size:10px;
     letter-spacing:.08em;
     text-transform:uppercase;
     color:var(--ink-dim);
-    margin-bottom:16px;
-    overflow:hidden;
-    position:relative;
   }
-  .story.hero .hero-media img{
+  .story-thumb img{
     width:100%;
     height:100%;
     object-fit:cover;
     display:block;
     position:absolute;
     inset:0;
+    transition:transform .45s ease;
+  }
+  .story:hover .story-thumb img{ transform:scale(1.04); }
+  .story-body{ min-width:0; }
+  .story.hero{
+    grid-template-columns:minmax(280px, 1.05fr) 1.15fr;
+    padding:0 0 26px;
+    margin-bottom:10px;
+  }
+  .story.hero .story-thumb{
+    min-height:260px;
+    aspect-ratio:16/11;
   }
   .story.hero .story-index{
     display:flex;
@@ -330,14 +379,6 @@
     line-height:1.25;
   }
   .story.hero p.desc{ font-size:15.5px; }
-
-  .story{
-    padding:22px 0;
-    border-bottom:1px solid var(--line);
-    display:grid;
-    grid-template-columns:90px 1fr;
-    gap:18px;
-  }
   #feed-col > .story:last-of-type{ border-bottom:none; }
 
   .story-index{
@@ -368,7 +409,7 @@
   .story p.desc{
     font-size:14.5px;
     line-height:1.55;
-    color:#c9c8bd;
+    color:var(--ink-dim);
     font-style:italic;
   }
 
@@ -433,6 +474,9 @@
     flex-wrap:wrap;
   }
   .ai-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
     font-family:var(--mono);
     font-size:10.5px;
     letter-spacing:.05em;
@@ -440,19 +484,21 @@
     background:transparent;
     border:1px solid var(--line);
     color:var(--ink-dim);
-    padding:6px 10px;
+    padding:7px 12px;
     cursor:pointer;
-    transition:.15s;
+    border-radius:var(--radius-sm);
+    transition:border-color .28s ease, color .28s ease, background-color .28s ease, transform .28s ease;
   }
   .ai-btn:hover{border-color:var(--wire-amber); color:var(--wire-amber);}
   .ai-btn:disabled{opacity:.4; cursor:wait;}
 
   .ai-panel{
     margin-top:12px;
-    border-left:2px solid var(--wire-amber);
-    padding:10px 14px;
+    border-left:3px solid var(--wire-amber);
+    padding:14px 16px;
     background:var(--paper-raised);
     display:none;
+    border-radius:0 var(--radius) var(--radius) 0;
   }
   .ai-panel.show{display:block;}
   .ai-panel .ai-tag{
@@ -544,7 +590,7 @@
     background:var(--paper);
     border:1px solid var(--line);
     padding:1px 5px;
-    border-radius:3px;
+    border-radius:8px;
     color:var(--wire-amber);
   }
   .ai-body pre, .chat-msg.ai pre{
@@ -552,7 +598,7 @@
     font-size:12.5px;
     background:var(--paper);
     border:1px solid var(--line);
-    border-radius:3px;
+    border-radius:8px;
     padding:10px 12px;
     overflow-x:auto;
     margin:0 0 10px;
@@ -618,7 +664,7 @@
     font-size:13.5px;
     line-height:1.5;
     padding:8px 10px;
-    border-radius:2px;
+    border-radius:var(--radius-sm);
   }
   .chat-msg.user{
     background:var(--paper-raised);
@@ -629,7 +675,7 @@
   }
   .chat-msg.ai{
     background:transparent;
-    color:#c9c8bd;
+    color:var(--ink-dim);
     border-left:2px solid var(--wire-green);
     padding-left:10px;
   }
@@ -642,11 +688,12 @@
     background:var(--paper);
     border:1px solid var(--line);
     color:var(--ink);
-    padding:8px 10px;
+    padding:8px 12px;
     font-family:var(--serif);
     font-size:13.5px;
+    border-radius:var(--radius-sm);
   }
-  .chat-input-row input:focus{outline:1px solid var(--wire-amber);}
+  .chat-input-row input:focus{outline:none; border-color:var(--wire-amber);}
   .chat-input-row button{
     background:var(--wire-amber);
     border:none;
@@ -657,6 +704,7 @@
     font-size:11px;
     cursor:pointer;
     text-transform:uppercase;
+    border-radius:var(--radius-sm);
   }
   .chat-input-row button:disabled{opacity:.5; cursor:wait;}
 
@@ -676,6 +724,27 @@
     vertical-align:middle;
     margin-left:4px;
   }
+  .more-wrap{
+    display:flex;
+    justify-content:center;
+    padding:28px 0 8px;
+  }
+  .more-btn{
+    font-family:var(--mono);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:12px 28px;
+    cursor:pointer;
+    border-radius:var(--radius);
+    transition:border-color .28s ease, color .28s ease, transform .28s ease, box-shadow .28s ease;
+  }
+  .more-btn:hover{border-color:var(--wire-amber); color:var(--wire-amber); transform:translateY(-1px); box-shadow:var(--shadow);}
+  .more-btn:disabled{opacity:.5; cursor:wait;}
   @keyframes blink{50%{opacity:0;}}
 
   .error-box{
@@ -758,7 +827,8 @@
   }
 
   @media (max-width:600px){
-    .story{grid-template-columns:1fr; gap:6px;}
+    .story, .story.hero{grid-template-columns:1fr; gap:12px;}
+    .story-thumb, .story.hero .story-thumb{ min-height:180px; aspect-ratio:16/9; }
     .story-index{display:flex; gap:8px; align-items:center;}
     .story-index .src{margin-top:0;}
     .story.hero h2{ font-size:22px; }
@@ -780,7 +850,7 @@
   }
   .ai-body p, .chat-msg p{margin:0 0 10px;}
   .ai-body p:last-child, .chat-msg p:last-child{margin-bottom:0;}
-  .ai-body strong, .chat-msg strong{color:#fff; font-weight:700;}
+  .ai-body strong, .chat-msg strong{color:var(--ink); font-weight:700;}
   .ai-body ul, .ai-body ol,
   .chat-msg ul, .chat-msg ol{
     margin:6px 0 10px;
@@ -792,7 +862,7 @@
     font-size:12.5px;
     background:var(--paper-raised);
     padding:1px 4px;
-    border-radius:2px;
+    border-radius:8px;
   }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
@@ -828,8 +898,27 @@
         GLOBAL
       </button>
       <button type="button" class="hdr-btn tab-btn" data-mode="local">
-        <span class="hdr-ico" aria-hidden="true">🇺🇿</span>
+        <span class="hdr-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/>
+            <circle cx="12" cy="10" r="2.2"/>
+          </svg>
+        </span>
         O'ZBEKISTON
+      </button>
+      <button type="button" id="themeToggle" class="hdr-btn" title="Dark / Light">
+        <span class="hdr-ico icon-moon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z"/>
+          </svg>
+        </span>
+        <span class="hdr-ico icon-sun" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+          </svg>
+        </span>
+        <span id="themeLabel">DARK</span>
       </button>
       <button type="button" class="hdr-btn tab-btn" data-mode="history">
         <span class="hdr-ico" aria-hidden="true">
@@ -975,6 +1064,37 @@ import {
   const statusLine = document.getElementById('statusLine');
   const tabs = document.querySelectorAll('.tab-btn');
 
+  const PREF_MODE = 'fmn-mode';
+  const PREF_TRANSLATE = 'fmn-translate';
+  const PREF_VISIBLE = 'fmn-visible';
+  const PREF_PAGE = 'fmn-gnews-page';
+  const INITIAL_FEED = 7;
+  const MORE_FEED = 5;
+
+  let visibleCount = INITIAL_FEED;
+  let gnewsPage = 1;
+
+  function savePrefs(){
+    try{
+      localStorage.setItem(PREF_MODE, currentMode);
+      localStorage.setItem(PREF_TRANSLATE, translateModeOn ? '1' : '0');
+      localStorage.setItem(PREF_VISIBLE + '-' + currentMode, String(visibleCount));
+      localStorage.setItem(PREF_PAGE + '-' + currentMode, String(gnewsPage));
+    }catch(e){}
+  }
+
+  function loadPrefs(){
+    try{
+      const m = localStorage.getItem(PREF_MODE);
+      if(m === 'global' || m === 'local' || m === 'history') currentMode = m;
+      translateModeOn = localStorage.getItem(PREF_TRANSLATE) === '1';
+      const vis = parseInt(localStorage.getItem(PREF_VISIBLE + '-' + currentMode) || '', 10);
+      visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
+      const pg = parseInt(localStorage.getItem(PREF_PAGE + '-' + currentMode) || '', 10);
+      gnewsPage = pg >= 1 ? pg : 1;
+    }catch(e){}
+  }
+
   let currentMode = 'global';
   let refreshTimer = null;
   let currentArticles = []; // hozirgi feed'dagi maqolalar, {..., id} bilan (id = hashUrl natijasi)
@@ -1001,6 +1121,16 @@ import {
       tabs.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentMode = btn.dataset.mode;
+      try{
+        const vis = parseInt(localStorage.getItem(PREF_VISIBLE + '-' + currentMode) || '', 10);
+        visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
+        const pg = parseInt(localStorage.getItem(PREF_PAGE + '-' + currentMode) || '', 10);
+        gnewsPage = pg >= 1 ? pg : 1;
+      }catch(e){
+        visibleCount = INITIAL_FEED;
+        gnewsPage = 1;
+      }
+      savePrefs();
       if(currentMode === 'history'){
         feedLabel.textContent = "TARIX — KUNLARNI TANLA";
         renderDayList();
@@ -1222,6 +1352,76 @@ import {
   // opts.history = true bo'lsa, tepaga "kunlar ro'yxatiga qaytish" tugmasi
   // chiqadi — bu funksiya ham live feed, ham tarix kunini bir xil render
   // qiladi (kod takrorlanmasin deb — story markup ikkalasida ham bir xil).
+  function interestScore(a){
+    const text = ((a.title || '') + ' ' + (a.description || '')).toLowerCase();
+    const keys = ['ai','chatgpt','claude','gemini','llm','openai','cursor','copilot','vibe','github','code','programming','python','javascript','typescript','arduino','raspberry','chip','gpu','nvidia','security','hack','startup','hardware','electronics','open source','developer'];
+    let s = 0;
+    keys.forEach(k => { if(text.includes(k)) s += 2; });
+    if((a.description || '').length > 80) s += 1;
+    if(a.image || a.imageUrl) s += 1;
+    return s;
+  }
+
+  function isNearDuplicate(a, pool){
+    const t = (a.title || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').trim();
+    const head = t.slice(0, 42);
+    if(!head) return true;
+    return pool.some(b => {
+      const u = (b.title || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').trim();
+      return u.startsWith(head.slice(0, 24)) || u.includes(head.slice(0, 30));
+    });
+  }
+
+  async function loadMoreNews(){
+    const btn = document.getElementById('moreBtn');
+    if(btn){
+      btn.disabled = true;
+      btn.textContent = 'YUKLANMOQDA...';
+    }
+    const target = visibleCount + MORE_FEED;
+    try{
+      // Qoldiq sahifani ochmaymiz — har MORE yangi qiziq mavzuning boshini oladi.
+      const { dateKey, slot } = currentNewsSlot();
+      const existing = new Set(currentArticles.map(a => a.id));
+      let added = 0;
+      for(let attempt = 0; attempt < 4 && added < MORE_FEED; attempt++){
+        gnewsPage += 1;
+        const topic = (gnewsPage + new Date().getHours()) % 6;
+        const res = await fetch(`/api/gnews?mode=${currentMode}&more=1&topic=${topic}`);
+        const data = await res.json().catch(() => ({}));
+        if(!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        const raw = (data.articles || [])
+          .slice()
+          .sort((a, b) => interestScore(b) - interestScore(a));
+        const saved = await persistGnewsBatch(raw, dateKey, slot);
+        const fresh = saved.filter(a => {
+          if(!a.id || existing.has(a.id)) return false;
+          if(isNearDuplicate(a, currentArticles)) return false;
+          if(interestScore(a) < 2) return false;
+          return true;
+        });
+        fresh.forEach(a => existing.add(a.id));
+        currentArticles = currentArticles.concat(fresh);
+        added += fresh.length;
+      }
+      visibleCount = currentArticles.length >= target ? target : Math.max(visibleCount, currentArticles.length);
+      savePrefs();
+      renderFeed(currentArticles);
+      if(added === 0){
+        const again = document.getElementById('moreBtn');
+        if(again) again.textContent = 'MORE — YANA URINIB KO\'R';
+      }
+    }catch(err){
+      console.error(err);
+      const again = document.getElementById('moreBtn');
+      if(again){
+        again.disabled = false;
+        again.textContent = 'MORE — XATO, QAYTA';
+      }
+      statusLine.textContent = 'MORE XATOLIGI: ' + err.message;
+    }
+  }
+
   function renderFeed(articles, opts = {}){
     const backNav = opts.history
       ? `<div class="history-nav">
@@ -1231,40 +1431,42 @@ import {
       : '';
 
     if(!articles.length){
-      feedEl.innerHTML = backNav + '<div class="placeholder">BU KUN UCHUN YANGILIK TOPILMADI</div>';
+      feedEl.innerHTML = backNav + '<div class="placeholder">BU KUN UCHUN YANGILIK TOPILMADI</div>'
+        + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">MORE</button></div>');
       feedCount.textContent = '0 TA YANGILIK';
       if(opts.history) bindBackButton();
+      const emptyMore = document.getElementById('moreBtn');
+      if(emptyMore) emptyMore.addEventListener('click', loadMoreNews);
       return;
     }
-    feedCount.textContent = articles.length + ' TA YANGILIK';
+    const shown = opts.history ? articles : articles.slice(0, visibleCount);
+    feedCount.textContent = shown.length + ' TA YANGILIK';
     // Bratishka, MUHIM: birinchi story (i===0) endi ".hero" klassi bilan
     // chiqadi — katta rasm-o'rni + katta sarlavha, screenshot'dagidek.
     // ID'lar (title-link-${i}, desc-${i} va h.k.) HECH O'ZGARMAGAN — shuning
     // uchun handleExplain/toggleDiscuss/translate logikasi butunlay ishlayveradi.
-    feedEl.innerHTML = backNav + articles.map((a, i) => {
+    feedEl.innerHTML = backNav + shown.map((a, i) => {
       const num = String(i+1).padStart(2,'0');
       const src = sourceName(a);
       const date = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
       const desc = a.description ? escapeHtml(a.description) : '';
       const isHero = i === 0 && !opts.history;
       const imgUrl = a.image || a.imageUrl || a.urlToImage || '';
-      const heroMedia = isHero
-        ? (imgUrl
-            ? `<div class="hero-media"><img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(a.title || src)}" loading="eager" onerror="this.remove()"></div>`
-            : `<div class="hero-media">${escapeHtml(src)}</div>`)
-        : '';
+      const thumb = imgUrl
+        ? `<div class="story-thumb"><img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(a.title || src)}" loading="${isHero ? 'eager' : 'lazy'}" onerror="this.remove()"></div>`
+        : `<div class="story-thumb">${escapeHtml(src)}</div>`;
       return `
         <article class="story${isHero ? ' hero' : ''}" data-idx="${i}" data-id="${a.id}">
-          ${isHero ? heroMedia : ''}
+          ${thumb}
+          <div class="story-body">
           <div class="story-index">${num}<span class="src">${escapeHtml(src)}</span></div>
-          <div>
             <h2 id="title-${i}"><a href="${a.url}" target="_blank" rel="noopener" id="title-link-${i}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
             <p class="desc" id="desc-${i}">${desc}</p>
             <div class="meta">${date}</div>
 
             <div class="ai-toolbar">
-              <button class="ai-btn" data-action="explain" data-idx="${i}">🇺🇿 Tarjima + Tushuntirish</button>
-              <button class="ai-btn" data-action="discuss" data-idx="${i}">💬 Muhokama qilish</button>
+              ${(a.aiSharh || a.explainResult) ? '' : `<button class="ai-btn" data-action="explain" data-idx="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v12H7l-3 3z"/></svg> Tarjima + Tushuntirish</button>`}
+              <button class="ai-btn" data-action="discuss" data-idx="${i}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg> Muhokama qilish</button>
             </div>
 
             <div class="ai-panel" id="ai-panel-${i}">
@@ -1283,7 +1485,7 @@ import {
             </div>
           </div>
         </article>`;
-    }).join('');
+    }).join('') + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">MORE</button></div>');
 
     // Sidebar "ENG KO'P O'QILGANLAR" — haqiqiy o'qilish statistikasi yo'q
     // (buning uchun alohida analytics/Firestore counter kerak bo'lardi),
@@ -1313,7 +1515,9 @@ import {
 
     // Sahifa qayta render bo'lganda — avval shu article uchun keshlangan
     // AI tushuntirish yoki chat tarixi bor-yo'qligini Firestore'dan tekshiramiz.
-    articles.forEach((a, i) => restoreCachedState(a.id, i));
+    shown.forEach((a, i) => restoreCachedState(a.id, i));
+    const moreBtn = document.getElementById('moreBtn');
+    if(moreBtn) moreBtn.addEventListener('click', loadMoreNews);
 
     // Agar "UZ TARJIMA" rejimi yoqilgan bo'lsa (masalan foydalanuvchi tab
     // almashtirdi va feed qayta render bo'ldi) — yangi kelgan article'larni
@@ -1433,7 +1637,7 @@ import {
           }
           renderMd(body, doc.aiSharh || doc.explainResult);
           panel.classList.add('show');
-          if(btn) btn.textContent = '🇺🇿 Tarjima + Tushuntirish (keshdan)';
+          if(btn) btn.remove();
         }
       }
       if(doc && Array.isArray(doc.aiMuhokama) && doc.aiMuhokama.length){
@@ -1515,7 +1719,7 @@ import {
         const tDesc = uz?.desc || '';
         renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
         renderMd(body, cached.aiSharh || cached.explainResult);
-        btn.style.display = 'none';
+        btn.remove();
         return;
       }
     }catch(e){
@@ -1524,7 +1728,7 @@ import {
 
     // 1-qadam: haqiqiy tarjima (Google Translate, key kerak emas, Groq bilan
     // aloqasi yo'q — shuning uchun Groq band bo'lsa ham bu qadam ishlaydi).
-    btn.textContent = '⏳ TARJIMA QILINMOQDA...';
+    btn.textContent = 'TARJIMA QILINMOQDA...';
     translateBody.textContent = 'Tarjima qilinmoqda...';
     body.textContent = '';
 
@@ -1562,7 +1766,7 @@ import {
     // 2-qadam: Groq — endi asl matn emas, TARJIMA QILINGAN o'zbekcha matn
     // asosida ishlaydi. Til qanday bo'lishidan qat'i nazar (auto-detect),
     // javobni har doim faqat o'zbek tilida yozishi qattiq talab qilinadi.
-    btn.textContent = '⏳ TUSHUNTIRILMOQDA...';
+    btn.textContent = 'TUSHUNTIRILMOQDA...';
     body.textContent = 'AI javob tayyorlayapti...';
 
     const sys = `Sen tajribali xalqaro yangiliklar sharhlovchisisan. Foydalanuvchi senga allaqachon o'zbek tiliga tarjima qilingan sarlavha va tavsifni beradi (lekin asl til har xil bo'lishi mumkin — ingliz, rus va h.k., buni avtomatik aniqlab ol). Javobingni QATIYAN FAQAT O'ZBEK TILIDA yoz, boshqa hech qanday tilda emas. Quyidagi tartibda javob ber:
@@ -1578,7 +1782,7 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
         { role: 'user', content: userMsg }
       ]);
       renderMd(body, result || 'AI bo\'sh javob qaytardi.');
-      btn.style.display = 'none';
+      btn.remove();
 
       // Natijani (tarjima + tushuntirish) birgalikda Firestore'ga yozamiz —
       // keyingi safar shu article uchun 0-qadam buni topadi va na tarjima,
@@ -1595,7 +1799,7 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
       // Bratishka, MUHIM: xato bo'lganda tugmani yashirmaymiz — aks holda
       // odam qayta urinib ko'ra olmay qoladi. Faqat muvaffaqiyatda yo'qoladi.
       body.textContent = 'XATOLIK: ' + err.message;
-      btn.textContent = '🇺🇿 Tarjima + Tushuntirish';
+      btn.textContent = 'Tarjima + Tushuntirish';
       btn.disabled = false;
     }
   }
@@ -1746,6 +1950,7 @@ QATIY USLUB:
     translateModeOn = false;
     translateBtn.classList.remove('active');
     translateLabel.textContent = 'UZ TARJIMA';
+    savePrefs();
   }
 
   // DOM'ga tarjima matnini qo'yadi + "translated" belgisini yoqadi.
@@ -1861,6 +2066,7 @@ QATIY USLUB:
       translateModeOn = true;
       translateBtn.classList.add('active');
       translateLabel.textContent = 'ORIGINAL TILGA QAYTARISH';
+      savePrefs();
     }catch(err){
       console.error('Translate all xato:', err);
       statusLine.textContent = 'TARJIMA XATOLIGI: ' + err.message;
@@ -1885,7 +2091,37 @@ QATIY USLUB:
     }, 30 * 60 * 1000);
   }
 
-  loadFeed();
+  const themeBtn = document.getElementById('themeToggle');
+  const themeLabel = document.getElementById('themeLabel');
+  function applyThemeLabel(){
+    const now = document.documentElement.getAttribute('data-theme') || 'dark';
+    if(themeLabel) themeLabel.textContent = now === 'light' ? 'LIGHT' : 'DARK';
+  }
+  applyThemeLabel();
+  if(themeBtn){
+    themeBtn.addEventListener('click', () => {
+      const now = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', now);
+      try{ localStorage.setItem('fmn-theme', now); }catch(e){}
+      applyThemeLabel();
+    });
+  }
+
+  loadPrefs();
+  tabs.forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === currentMode);
+  });
+  if(translateModeOn){
+    translateBtn.classList.add('active');
+    translateLabel.textContent = 'ORIGINAL TILGA QAYTARISH';
+  }
+  if(currentMode === 'history'){
+    feedLabel.textContent = "TARIX — KUNLARNI TANLA";
+    renderDayList();
+  }else{
+    feedLabel.textContent = currentMode === 'global' ? 'GLOBAL FEED' : "O'ZBEKISTON FEED";
+    loadFeed();
+  }
   scheduleRefresh();
 })();
 </script>

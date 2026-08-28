@@ -34,6 +34,7 @@ export default async function handler(req, res) {
   // Frontend faqat "mode" parametrini yuboradi (global | local),
   // qolgan hamma narsani (key, lang, country) shu yerda serverda hal qilamiz.
   const mode = req.query.mode === 'local' ? 'local' : 'global';
+  const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
 
   // Bratan aytdi: umumiy siyosat-iqtisod aralashmasi kerak emas — faqat
   // DASTURLASH / SUN'IY INTELLEKT / TEXNOLOGIYA OLAMI kerak. Shuning uchun
@@ -43,18 +44,32 @@ export default async function handler(req, res) {
   // Avvalgi 30+ so'zli query 500+ belgi edi -> doim "too long" xatosi berardi.
   // Endi 2 ta QISQA query bor: har biri navbat bilan (soat asosida) ishlatiladi,
   // shunda mavzular kengroq qamrab olinadi, lekin har biri 200 belgidan kichik.
+  // Har MORE bosilishi YANGI qiziq mavzuning BOSHINI oladi.
+  // Bitta query'ning 2-3-sahifasi (qoldiq, zerikarli) olinmaydi.
   const TECH_QUERIES = [
-    '(AI OR OpenAI OR Anthropic OR ChatGPT OR Gemini OR "large language model")',
-    '(programming OR coding OR GitHub OR "open source" OR cybersecurity OR startup)',
+    '(AI OR ChatGPT OR Claude OR Gemini OR LLM OR OpenAI OR Anthropic)',
+    '(Cursor OR Copilot OR "vibe coding" OR "code generation" OR Windsurf)',
+    '(programming OR GitHub OR "open source" OR TypeScript OR Python)',
+    '(electronics OR Arduino OR Raspberry OR semiconductor OR chip OR hardware)',
+    '(cybersecurity OR vulnerability OR ransomware OR "zero day")',
+    '(startup OR "developer tools" OR SaaS OR GPU OR NVIDIA)',
   ];
-  // Soatga qarab query almashtiramiz -> ikkala mavzu ham vaqti bilan ko'rinadi
-  const TECH_QUERY = TECH_QUERIES[new Date().getHours() % TECH_QUERIES.length];
+  const topic = Math.max(0, parseInt(String(req.query.topic || '-1'), 10));
+  const isMore = req.query.more === '1' || topic >= 0;
+  const qIndex = topic >= 0
+    ? topic % TECH_QUERIES.length
+    : (new Date().getHours() + Math.max(0, page - 1)) % TECH_QUERIES.length;
+  const TECH_QUERY = TECH_QUERIES[qIndex];
+  // MORE: relevance + page=1 (mavzuning eng yaxshi boshi).
+  // Birinchi yuklash: publishedAt (yangiligi).
+  const sortby = isMore ? 'relevance' : 'publishedAt';
+  const usePage = isMore ? 1 : page;
 
   let url;
   if (mode === 'global') {
-    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&lang=en&max=15&sortby=publishedAt&apikey=${encodeURIComponent(GNEWS_KEY)}`;
+    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&lang=en&max=10&page=${usePage}&sortby=${sortby}&apikey=${encodeURIComponent(GNEWS_KEY)}`;
   } else {
-    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&country=uz&lang=ru&max=15&sortby=publishedAt&apikey=${encodeURIComponent(GNEWS_KEY)}`;
+    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&country=uz&lang=ru&max=10&page=${usePage}&sortby=${sortby}&apikey=${encodeURIComponent(GNEWS_KEY)}`;
   }
 
   try {
