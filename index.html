@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WIRE // Live Yangiliklar Terminali</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
+  :root{
+    --paper:#0d0d0c;
+    --paper-raised:#161613;
+    --ink:#ecebe4;
+    --ink-dim:#8a8a7d;
+    --wire-red:#c23b2e;
+    --wire-amber:#d9a441;
+    --line:#2a2a24;
+    --mono: 'JetBrains Mono', monospace;
+    --serif: 'Newsreader', serif;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ===== HEADER / MASTHEAD ===== */
+  header{
+    border-bottom:3px double var(--line);
+    padding:20px 24px 14px;
+    position:sticky;
+    top:0;
+    background:var(--paper);
+    z-index:50;
+  }
+
+  .masthead-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-dim);
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    margin-bottom:14px;
+  }
+
+  #clock{color:var(--wire-amber); font-weight:700;}
+
+  .masthead-title{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  h1{
+    font-family:var(--mono);
+    font-weight:800;
+    font-size:clamp(28px,6vw,46px);
+    letter-spacing:-0.02em;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  h1 span.blink{
+    width:10px;height:10px;border-radius:50%;
+    background:var(--wire-red);
+    display:inline-block;
+    animation:pulse 1.6s infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(194,59,46,.5);}
+    50%{opacity:.4;box-shadow:0 0 0 6px rgba(194,59,46,0);}
+  }
+
+  .status-line{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+  }
+
+  /* ===== TABS ===== */
+  .tabs{
+    display:flex;
+    gap:0;
+    margin-top:16px;
+    border:1px solid var(--line);
+  }
+  .tab-btn{
+    flex:1;
+    background:transparent;
+    border:none;
+    color:var(--ink-dim);
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    padding:10px 8px;
+    cursor:pointer;
+    border-right:1px solid var(--line);
+    transition:.15s;
+  }
+  .tab-btn:last-child{border-right:none;}
+  .tab-btn:hover{color:var(--ink); background:var(--paper-raised);}
+  .tab-btn.active{
+    background:var(--wire-red);
+    color:#fff;
+    font-weight:700;
+  }
+
+  /* ===== MAIN FEED ===== */
+  main{
+    max-width:900px;
+    margin:0 auto;
+    padding:24px 20px 80px;
+  }
+
+  #feed-meta{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-dim);
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    margin-bottom:18px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+  }
+
+  .story{
+    padding:22px 0;
+    border-bottom:1px solid var(--line);
+    display:grid;
+    grid-template-columns:90px 1fr;
+    gap:18px;
+  }
+  .story:first-of-type{padding-top:0;}
+
+  .story-index{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-dim);
+    padding-top:4px;
+  }
+  .story-index .src{
+    display:block;
+    color:var(--wire-amber);
+    font-weight:700;
+    margin-top:4px;
+    text-transform:uppercase;
+    font-size:10px;
+  }
+
+  .story h2{
+    font-family:var(--serif);
+    font-weight:600;
+    font-size:20px;
+    line-height:1.3;
+    margin-bottom:8px;
+  }
+  .story h2 a{color:var(--ink); text-decoration:none;}
+  .story h2 a:hover{color:var(--wire-amber);}
+
+  .story p{
+    font-size:14.5px;
+    line-height:1.55;
+    color:#c9c8bd;
+    font-style:italic;
+  }
+
+  .story .meta{
+    font-family:var(--mono);
+    font-size:10.5px;
+    color:var(--ink-dim);
+    margin-top:10px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+
+  /* ===== LOADING / EMPTY ===== */
+  .placeholder{
+    font-family:var(--mono);
+    text-align:center;
+    padding:60px 20px;
+    color:var(--ink-dim);
+    font-size:13px;
+    line-height:1.8;
+  }
+  .placeholder .cursor{
+    display:inline-block;
+    width:8px;height:14px;
+    background:var(--wire-amber);
+    animation:blink 1s step-end infinite;
+    vertical-align:middle;
+    margin-left:4px;
+  }
+  @keyframes blink{50%{opacity:0;}}
+
+  .error-box{
+    border:1px solid var(--wire-red);
+    background:rgba(194,59,46,.08);
+    padding:16px;
+    font-family:var(--mono);
+    font-size:12px;
+    color:#e2a29b;
+    line-height:1.6;
+  }
+
+  footer{
+    text-align:center;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--ink-dim);
+    padding:24px;
+    border-top:1px solid var(--line);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+
+  @media (max-width:600px){
+    .story{grid-template-columns:1fr; gap:6px;}
+    .story-index{display:flex; gap:8px; align-items:center;}
+    .story-index .src{margin-top:0;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="masthead-top">
+    <span>ESTABLISHED TODAY // AUTO-REFRESH: 30 MIN</span>
+    <span id="clock">--:--:--</span>
+  </div>
+  <div class="masthead-title">
+    <h1><span class="blink"></span>WIRE</h1>
+    <div class="status-line" id="statusLine">TERMINAL IDLE</div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-mode="global">🌍 Global</button>
+    <button class="tab-btn" data-mode="local">🇺🇿 O'zbekiston</button>
+  </div>
+</header>
+
+<main>
+  <div id="feed-meta">
+    <span id="feedLabel">GLOBAL FEED</span>
+    <span id="feedCount">0 TA YANGILIK</span>
+  </div>
+  <div id="feed">
+    <div class="placeholder">YUKLANMOQDA<span class="cursor"></span></div>
+  </div>
+</main>
+
+<footer>WIRE TERMINAL — GNews API orqali ishlaydi — bratan, key'siz bu narsa jim turadi</footer>
+
+<script>
+(function(){
+  // Bratan, faqat LOCAL foydalanish uchun hardcoded qilindi.
+  // Bu faylni hech qachon GitHub'ga, hostingga yoki boshqa public joyga qo'yma —
+  // key ochiq ko'rinadi va oqib ketadi.
+  const API_KEY = 'YOUR_API_KEY_HERE';
+
+  const feedEl = document.getElementById('feed');
+  const feedLabel = document.getElementById('feedLabel');
+  const feedCount = document.getElementById('feedCount');
+  const statusLine = document.getElementById('statusLine');
+  const tabs = document.querySelectorAll('.tab-btn');
+
+  let currentMode = 'global';
+  let refreshTimer = null;
+
+  // ---- clock ----
+  function tickClock(){
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('uz-UZ', {hour12:false});
+  }
+  tickClock();
+  setInterval(tickClock, 1000);
+
+  // ---- tabs ----
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMode = btn.dataset.mode;
+      feedLabel.textContent = currentMode === 'global' ? 'GLOBAL FEED' : "O'ZBEKISTON FEED";
+      loadFeed();
+    });
+  });
+
+  // ---- fetch logic ----
+  async function loadFeed(){
+    if(!API_KEY || API_KEY === 'YOUR_API_KEY_HERE'){
+      feedEl.innerHTML = '<div class="error-box">KEY QO\'YILMAGAN — script ichidagi API_KEY o\'zgaruvchisiga o\'z GNews key\'ingni yoz.</div>';
+      statusLine.textContent = 'KEY YO\'Q';
+      return;
+    }
+
+    statusLine.textContent = 'YUKLANMOQDA...';
+    feedEl.innerHTML = '<div class="placeholder">SO\'ROV YUBORILMOQDA<span class="cursor"></span></div>';
+
+    let url;
+    if(currentMode === 'global'){
+      url = `https://gnews.io/api/v4/top-headlines?lang=en&max=15&apikey=${encodeURIComponent(API_KEY)}`;
+    } else {
+      url = `https://gnews.io/api/v4/top-headlines?country=uz&lang=ru&max=15&apikey=${encodeURIComponent(API_KEY)}`;
+    }
+
+    try{
+      const res = await fetch(url);
+      if(!res.ok){
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(`HTTP ${res.status}: ${errBody.errors ? errBody.errors.join(', ') : res.statusText}`);
+      }
+      const data = await res.json();
+      renderFeed(data.articles || []);
+      statusLine.textContent = 'LIVE — OXIRGI YANGILANISH: ' + new Date().toLocaleTimeString('uz-UZ',{hour12:false});
+    } catch(err){
+      console.error(err);
+      feedEl.innerHTML = `<div class="error-box">
+        XATOLIK YUZ BERDI: ${escapeHtml(err.message)}<br><br>
+        Tekshir: 1) API key to'g'rimi? 2) Kunlik limit (100) tugamadimi? 3) "uz" mamlakati uchun local yangilik kam bo'lishi mumkin — global tab'ni sinab ko'r.
+      </div>`;
+      statusLine.textContent = 'XATOLIK';
+    }
+  }
+
+  function renderFeed(articles){
+    if(!articles.length){
+      feedEl.innerHTML = '<div class="placeholder">BU FEED UCHUN YANGILIK TOPILMADI</div>';
+      feedCount.textContent = '0 TA YANGILIK';
+      return;
+    }
+    feedCount.textContent = articles.length + ' TA YANGILIK';
+    feedEl.innerHTML = articles.map((a, i) => {
+      const num = String(i+1).padStart(2,'0');
+      const src = a.source && a.source.name ? a.source.name : 'NOMA\'LUM';
+      const date = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
+      const desc = a.description ? escapeHtml(a.description) : '';
+      return `
+        <article class="story">
+          <div class="story-index">${num}<span class="src">${escapeHtml(src)}</span></div>
+          <div>
+            <h2><a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
+            <p>${desc}</p>
+            <div class="meta">${date}</div>
+          </div>
+        </article>`;
+    }).join('');
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ---- auto refresh every 30 min ----
+  function scheduleRefresh(){
+    if(refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(loadFeed, 30 * 60 * 1000);
+  }
+
+  // ---- init ----
+  loadFeed();
+  scheduleRefresh();
+})();
+</script>
+
+</body>
+</html>
