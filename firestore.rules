@@ -17,6 +17,16 @@ service cloud.firestore {
         allow update, delete: if false; // chat tarixi o'zgarmas
       }
     }
+
+    // Kunlar arxivi — TARIX bo'limi shu yerdan "qaysi kunlar mavjud"ligini
+    // o'qiydi. Marker document, hech qanday maxfiy narsa yo'q — ochiq o'qish/yozish.
+    match /days/{date} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['date'])
+        && request.resource.data.date is string
+        && request.resource.data.date == date; // doc id bilan mos kelishi shart — spoof qilib bo'lmaydi
+      allow delete: if false;
+    }
   }
 
   function isValidArticle(data) {
@@ -24,7 +34,10 @@ service cloud.firestore {
       && data.title is string && data.title.size() < 500
       && data.url is string && data.url.size() < 1000
       && data.mode in ['global', 'local']
-      && (!('explainResult' in data) || (data.explainResult is string && data.explainResult.size() < 5000));
+      && (!('explainResult' in data) || (data.explainResult is string && data.explainResult.size() < 5000))
+      && (!('translatedTitle' in data) || (data.translatedTitle is string && data.translatedTitle.size() < 500))
+      && (!('translatedDesc' in data) || (data.translatedDesc is string && data.translatedDesc.size() < 3000))
+      && (!('dateKey' in data) || (data.dateKey is string && data.dateKey.size() <= 10));
   }
 
   function isValidArticleUpdate(newData, oldData) {

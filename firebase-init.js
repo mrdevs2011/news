@@ -13,6 +13,8 @@ import {
   getDocs,
   query,
   orderBy,
+  where,
+  limit,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
@@ -42,8 +44,12 @@ export async function hashUrl(url) {
 }
 
 // Feed'dan kelgan article'ni Firestore'ga yozadi (merge — mavjud bo'lsa ustiga qo'shiladi,
-// explainResult va chat tarixi buzilmaydi).
-export async function upsertArticle(articleId, article, mode) {
+// explainResult, translatedTitle/Desc va chat tarixi buzilmaydi).
+// dateKey = "YYYY-MM-DD" (client tomonda hisoblanadi) — TARIX bo'limi shu maydon
+// bo'yicha kunlarga ajratadi. serverTimestamp() write payti hali noma'lum bo'lgani
+// uchun (u faqat serverda resolve bo'ladi), kun bo'yicha guruhlash uchun alohida
+// oddiy string maydon kerak edi.
+export async function upsertArticle(articleId, article, mode, dateKey) {
   const ref = doc(db, "articles", articleId);
   await setDoc(
     ref,
@@ -54,6 +60,7 @@ export async function upsertArticle(articleId, article, mode) {
       source: article.source?.name || "",
       publishedAt: article.publishedAt || "",
       mode,
+      dateKey: dateKey || "",
       fetchedAt: serverTimestamp()
     },
     { merge: true }
@@ -87,4 +94,54 @@ export async function appendChatMessage(articleId, role, content) {
     content,
     createdAt: serverTimestamp()
   });
+}
+
+// ---- Tarjima keshi ----
+// Bratan: mana shu yo'q edi — "UZ TARJIMA" tugmasi bosilganda AI HAR SAFAR
+// qayta chaqirilardi, hatto o'sha article ilgari tarjima qilingan bo'lsa ham.
+// Endi natija shu yerda saqlanadi, ikkinchi safar Firestore'dan o'qiladi —
+// AI umuman chaqirilmaydi (token tejaladi, tezroq ishlaydi).
+export async function saveTranslation(articleId, translatedTitle, translatedDesc) {
+  const ref = doc(db, "articles", articleId);
+  await setDoc(
+    ref,
+    {
+      translatedTitle: translatedTitle || "",
+      translatedDesc: translatedDesc || ""
+    },
+    { merge: true }
+  );
+}
+
+// ---- Tarix (kun bo'yicha arxiv) ----
+
+// "days" collection — har kun uchun bitta marker document (id = dateKey).
+// Nega alohida collection: Firestore'da "articles" ichidan DISTINCT dateKey
+// so'rab bo'lmaydi (bunday query yo'q). Shuning uchun har safar yangi kun
+// boshlanganda shu yerga bitta belgi qo'yamiz — TARIX tugmasi bosilganda
+// "qaysi kunlar mavjud" ro'yxatini shu yerdan tez va arzon o'qiydi.
+export async function markDay(dateKey) {
+  const ref = doc(db, "days", dateKey);
+  await setDoc(ref, { date: dateKey }, { merge: true });
+}
+
+// Oxirgi N ta kun (eng yangisi birinchi). Bittagina orderBy — composite
+// index kerak emas, default index bilan ishlaydi.
+export async function getRecentDays(maxDays = 30) {
+  const ref = collection(db, "days");
+  const q = query(ref, orderBy("date", "desc"), limit(maxDays));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.id);
+}
+
+// Berilgan kunga tegishli barcha article'lar. Faqat bitta equality filter
+// (dateKey == ...) ishlatilgan, orderBy YO'Q — shu sabab composite index
+// so'ramaydi. Tartiblashni (eng yangi tepada) client tomonda qilamiz.
+export async function getArticlesByDate(dateKey) {
+  const ref = collection(db, "articles");
+  const q = query(ref, where("dateKey", "==", dateKey));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.fetchedAt?.seconds || 0) - (a.fetchedAt?.seconds || 0));
 }

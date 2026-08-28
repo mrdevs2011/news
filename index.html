@@ -388,6 +388,57 @@
     letter-spacing:.08em;
   }
 
+  .day-list{
+    display:flex;
+    flex-direction:column;
+  }
+  .day-btn{
+    text-align:left;
+    background:transparent;
+    border:1px solid var(--line);
+    border-bottom:none;
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px;
+    text-transform:capitalize;
+    padding:14px 16px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .day-list .day-btn:last-child{border-bottom:1px solid var(--line);}
+  .day-btn:hover{background:var(--paper-raised); color:var(--wire-amber); border-color:var(--wire-amber);}
+
+  .history-nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:18px;
+    padding-bottom:14px;
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  .back-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    padding:8px 12px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .back-btn:hover{border-color:var(--wire-amber); color:var(--wire-amber);}
+  .history-date-label{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--wire-amber);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+  }
+
   @media (max-width:600px){
     .story{grid-template-columns:1fr; gap:6px;}
     .story-index{display:flex; gap:8px; align-items:center;}
@@ -419,6 +470,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-mode="global">🌍 Global</button>
     <button class="tab-btn" data-mode="local">🇺🇿 O'zbekiston</button>
+    <button class="tab-btn" data-mode="history">🕘 Tarix</button>
   </div>
 </header>
 
@@ -452,7 +504,11 @@ import {
   getArticleDoc,
   saveExplainResult,
   loadChatHistory,
-  appendChatMessage
+  appendChatMessage,
+  saveTranslation,
+  markDay,
+  getRecentDays,
+  getArticlesByDate
 } from './firebase-init.js';
 
 (function(){
@@ -533,10 +589,37 @@ import {
       tabs.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentMode = btn.dataset.mode;
-      feedLabel.textContent = currentMode === 'global' ? 'GLOBAL FEED' : "O'ZBEKISTON FEED";
-      loadFeed();
+      if(currentMode === 'history'){
+        feedLabel.textContent = "TARIX — KUNLARNI TANLA";
+        renderDayList();
+      }else{
+        feedLabel.textContent = currentMode === 'global' ? 'GLOBAL FEED' : "O'ZBEKISTON FEED";
+        loadFeed();
+      }
     });
   });
+
+  // Bugungi kunni "YYYY-MM-DD" formatida qaytaradi — Firestore'da article'larni
+  // kunlarga ajratish shu kalit bo'yicha ishlaydi (mahalliy vaqt, UTC emas).
+  function todayKey(){
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  // "2026-08-27" -> "27-avgust, 2026, payshanba" ko'rinishida chiqaradi.
+  function formatDateUz(dateKey){
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString('uz-UZ', { day:'2-digit', month:'long', year:'numeric', weekday:'long' });
+  }
+
+  // Firestore'da manba ikki xil shaklda kelishi mumkin: live feed'da
+  // GNews object ({name: "..."}), tarix'da esa biz saqlagan string.
+  // Shu funksiya ikkalasini ham to'g'ri o'qiydi.
+  function sourceName(a){
+    if(!a.source) return "NOMA'LUM";
+    return typeof a.source === 'string' ? (a.source || "NOMA'LUM") : (a.source.name || "NOMA'LUM");
+  }
 
   async function loadFeed(){
     statusLine.textContent = 'YUKLANMOQDA...';
@@ -556,6 +639,11 @@ import {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
       const rawArticles = data.articles || [];
+      const dateKey = todayKey();
+
+      // Kun markerini qo'yamiz — TARIX ro'yxati shu yerdan "bugun feed keldi"
+      // deb biladi. Fire-and-forget: feedni ko'rsatishni bloklamaydi.
+      markDay(dateKey).catch(e => console.warn('kun belgisi yozilmadi:', e.message));
 
       // Har article uchun barqaror ID chiqaramiz (url hash) va Firestore'ga yozamiz.
       // Bu qadam sekin bo'lishi mumkin (SHA-256 + Firestore write har birida) —
@@ -566,7 +654,7 @@ import {
         // Xato bo'lsa ham feed ko'rsatishni to'xtatmaymiz (bazaga yozib bo'lmasa ham,
         // foydalanuvchi yangilikni o'qishi kerak).
         try{
-          await upsertArticle(id, a, currentMode);
+          await upsertArticle(id, a, currentMode, dateKey);
         }catch(e){
           console.warn('Firestore upsert xato:', e.message);
         }
@@ -585,16 +673,27 @@ import {
     }
   }
 
-  function renderFeed(articles){
+  // opts.history = true bo'lsa, tepaga "kunlar ro'yxatiga qaytish" tugmasi
+  // chiqadi — bu funksiya ham live feed, ham tarix kunini bir xil render
+  // qiladi (kod takrorlanmasin deb — story markup ikkalasida ham bir xil).
+  function renderFeed(articles, opts = {}){
+    const backNav = opts.history
+      ? `<div class="history-nav">
+           <button class="back-btn" id="backToDaysBtn">← KUNLAR RO'YXATIGA QAYTISH</button>
+           <span class="history-date-label">${escapeHtml(formatDateUz(opts.date))}</span>
+         </div>`
+      : '';
+
     if(!articles.length){
-      feedEl.innerHTML = '<div class="placeholder">BU FEED UCHUN YANGILIK TOPILMADI</div>';
+      feedEl.innerHTML = backNav + '<div class="placeholder">BU KUN UCHUN YANGILIK TOPILMADI</div>';
       feedCount.textContent = '0 TA YANGILIK';
+      if(opts.history) bindBackButton();
       return;
     }
     feedCount.textContent = articles.length + ' TA YANGILIK';
-    feedEl.innerHTML = articles.map((a, i) => {
+    feedEl.innerHTML = backNav + articles.map((a, i) => {
       const num = String(i+1).padStart(2,'0');
-      const src = a.source && a.source.name ? a.source.name : 'NOMA\'LUM';
+      const src = sourceName(a);
       const date = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
       const desc = a.description ? escapeHtml(a.description) : '';
       return `
@@ -644,6 +743,8 @@ import {
       });
     });
 
+    if(opts.history) bindBackButton();
+
     // Sahifa qayta render bo'lganda — avval shu article uchun keshlangan
     // AI tushuntirish yoki chat tarixi bor-yo'qligini Firestore'dan tekshiramiz.
     articles.forEach((a, i) => restoreCachedState(a.id, i));
@@ -654,6 +755,66 @@ import {
     // qolib, yangisi original tilda chiqib qoladi — bu chalkash bo'lardi.
     if(translateModeOn){
       translateAllArticles();
+    }
+  }
+
+  function bindBackButton(){
+    const btn = document.getElementById('backToDaysBtn');
+    if(btn) btn.addEventListener('click', () => {
+      feedLabel.textContent = "TARIX — KUNLARNI TANLA";
+      renderDayList();
+    });
+  }
+
+  // =========================================================
+  // 2b) TARIX — kunlar ro'yxati va tanlangan kun feedi
+  // =========================================================
+  async function renderDayList(){
+    statusLine.textContent = 'TARIX YUKLANMOQDA...';
+    feedEl.innerHTML = '<div class="placeholder">YUKLANMOQDA<span class="cursor"></span></div>';
+    try{
+      const days = await getRecentDays(30);
+      const today = todayKey();
+      // Faqat BUGUNDAN ORTDA QOLGAN kunlar — bugungi feed live tab'larda
+      // allaqachon ko'rinadi, tarixda takrorlashning hojati yo'q.
+      const pastDays = days.filter(d => d !== today);
+
+      if(!pastDays.length){
+        feedEl.innerHTML = '<div class="placeholder">HALI ARXIVLANGAN KUN YO\'Q<br>ERTAGA QAYTIB KO\'R</div>';
+        feedCount.textContent = '0 TA KUN';
+        statusLine.textContent = 'TARIX TAYYOR';
+        return;
+      }
+
+      feedCount.textContent = pastDays.length + ' TA KUN';
+      feedEl.innerHTML = `<div class="day-list">${pastDays.map(d =>
+        `<button class="day-btn" data-date="${d}">${escapeHtml(formatDateUz(d))}</button>`
+      ).join('')}</div>`;
+
+      feedEl.querySelectorAll('.day-btn').forEach(btn => {
+        btn.addEventListener('click', () => loadHistoryDay(btn.dataset.date));
+      });
+      statusLine.textContent = 'TARIX TAYYOR';
+    }catch(err){
+      console.error(err);
+      feedEl.innerHTML = `<div class="error-box">TARIXNI YUKLASHDA XATOLIK: ${escapeHtml(err.message)}</div>`;
+      statusLine.textContent = 'XATOLIK';
+    }
+  }
+
+  async function loadHistoryDay(dateKey){
+    statusLine.textContent = 'YUKLANMOQDA...';
+    feedEl.innerHTML = '<div class="placeholder">SO\'ROV YUBORILMOQDA<span class="cursor"></span></div>';
+    feedLabel.textContent = formatDateUz(dateKey).toUpperCase();
+    try{
+      const docs = await getArticlesByDate(dateKey);
+      currentArticles = docs;
+      renderFeed(currentArticles, { history: true, date: dateKey });
+      statusLine.textContent = 'TARIX — ' + dateKey;
+    }catch(err){
+      console.error(err);
+      feedEl.innerHTML = `<div class="error-box">XATOLIK: ${escapeHtml(err.message)}</div>`;
+      statusLine.textContent = 'XATOLIK';
     }
   }
 
@@ -704,7 +865,7 @@ import {
 3) Agar tegishli bo'lsa — bu voqea nimaga olib kelishi mumkinligi haqida qisqa fikr
 Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
 
-    const userMsg = `Sarlavha: ${a.title || ''}\nTavsif: ${a.description || ''}\nManba: ${a.source?.name || ''}`;
+    const userMsg = `Sarlavha: ${a.title || ''}\nTavsif: ${a.description || ''}\nManba: ${sourceName(a)}`;
 
     try{
       const result = await aiChat([
@@ -849,10 +1010,34 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
     translateLabel.textContent = 'UZ TARJIMA';
   }
 
-  // Barcha ko'rinayotgan article'larni BITTA AI so'rovda tarjima qiladi.
-  // Nega bitta so'rov: 15 ta article uchun 15 ta alohida so'rov yubormaymiz —
-  // bu sekin va key limitini tez tugatadi. O'rniga hammasini bitta prompt'ga
-  // joylab, AI'dan JSON massiv qaytarishni so'raymiz.
+  // DOM'ga tarjima matnini qo'yadi + "translated" belgisini yoqadi.
+  // Ham keshdan (Firestore) kelgan, ham yangi AI natijasi shu orqali chiqadi.
+  function applyTranslation(i, title, desc){
+    const titleLink = document.getElementById(`title-link-${i}`);
+    const descEl = document.getElementById(`desc-${i}`);
+    if(titleLink && title){
+      titleLink.textContent = title;
+      titleLink.parentElement.classList.add('translated');
+    }
+    if(descEl && desc){
+      descEl.textContent = desc;
+      descEl.classList.add('translated');
+      if(!descEl.parentElement.querySelector('.translated-badge')){
+        const badge = document.createElement('span');
+        badge.className = 'translated-badge';
+        badge.textContent = '(AI tarjima)';
+        descEl.after(badge);
+      }
+    }
+  }
+
+  // Barcha ko'rinayotgan article'larni tarjima qiladi — LEKIN avval Firestore'dan
+  // tekshiradi: bu article ilgari tarjima qilingan bo'lsa (translatedTitle mavjud),
+  // AI UMUMAN CHAQIRILMAYDI, keshdan to'g'ridan-to'g'ri chiqadi. Faqat hali
+  // tarjima qilinmagan article'lar bitta batch AI so'rovga tushadi (token tejash —
+  // 15 ta alohida so'rov o'rniga bitta prompt).
+  // Natija darhol Firestore'ga yoziladi — ertaga shu yangilik "tarix"da ochilsa ham
+  // qayta tarjima qilinmaydi, chunki translatedTitle/translatedDesc doc'ida saqlanadi.
   async function translateAllArticles(){
     if(!currentArticles.length) return;
     isTranslating = true;
@@ -867,56 +1052,76 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
       }
     });
 
-    const sys = `Senga yangiliklar ro'yxati JSON massiv sifatida beriladi, har birida "id", "title", "desc" maydonlari bor.
+    try{
+      // 1-qadam: har article uchun Firestore'da keshlangan tarjima bormi tekshiramiz.
+      // Tarix'dan kelgan article'larda bu maydon allaqachon obyekt ichida bo'lishi
+      // mumkin (a.translatedTitle) — lekin ishonchli bo'lish uchun baribir Firestore'dan
+      // o'qiymiz, chunki live feed'da bu maydon article obyektida yo'q.
+      const cacheChecks = await Promise.all(currentArticles.map(async (a) => {
+        try{
+          const doc = await getArticleDoc(a.id);
+          return (doc && doc.translatedTitle) ? { title: doc.translatedTitle, desc: doc.translatedDesc || '' } : null;
+        }catch(e){
+          return null;
+        }
+      }));
+
+      const needsAiIdx = [];
+      currentArticles.forEach((a, i) => {
+        const cached = cacheChecks[i];
+        if(cached){
+          applyTranslation(i, cached.title, cached.desc); // AI chaqirilmadi — bepul, tezkor
+        }else{
+          needsAiIdx.push(i);
+        }
+      });
+
+      // 2-qadam: faqat keshda YO'Q bo'lganlarni AI'ga yuboramiz.
+      if(needsAiIdx.length){
+        const sys = `Senga yangiliklar ro'yxati JSON massiv sifatida beriladi, har birida "id", "title", "desc" maydonlari bor.
 Har bir "title" va "desc"ni O'ZBEK TILIGA tarjima qil. Ma'noni to'g'ri, tabiiy uzbekcha uslubda ber, so'zma-so'z emas.
 JAVOBING FAQAT JSON MASSIV bo'lishi kerak, boshqa hech qanday matn, izoh, yoki markdown belgisi ("\`\`\`") qo'shma.
 Format: [{"id": 0, "title": "...", "desc": "..."}, ...]
 Massiv uzunligi va "id" tartibi kiruvchi ma'lumot bilan AYNAN bir xil bo'lishi kerak.`;
 
-    const payload = currentArticles.map((a, i) => ({
-      id: i,
-      title: originalTexts[i].title,
-      desc: originalTexts[i].desc
-    }));
+        const payload = needsAiIdx.map(i => ({
+          id: i,
+          title: originalTexts[i].title,
+          desc: originalTexts[i].desc
+        }));
 
-    try{
-      const raw = await aiChat([
-        { role: 'system', content: sys },
-        { role: 'user', content: JSON.stringify(payload) }
-      ]);
+        const raw = await aiChat([
+          { role: 'system', content: sys },
+          { role: 'user', content: JSON.stringify(payload) }
+        ]);
 
-      // AI ba'zan ```json bilan o'rab yuborishi mumkin — tozalab olamiz.
-      const cleaned = raw.replace(/```json|```/g, '').trim();
-      let translated;
-      try{
-        translated = JSON.parse(cleaned);
-      }catch(parseErr){
-        throw new Error('AI javobi JSON formatda emas: ' + parseErr.message);
-      }
-
-      if(!Array.isArray(translated)){
-        throw new Error('AI JSON massiv qaytarmadi.');
-      }
-
-      translated.forEach(item => {
-        const i = item.id;
-        const titleLink = document.getElementById(`title-link-${i}`);
-        const descEl = document.getElementById(`desc-${i}`);
-        if(titleLink && item.title){
-          titleLink.textContent = item.title;
-          titleLink.parentElement.classList.add('translated');
+        // AI ba'zan ```json bilan o'rab yuborishi mumkin — tozalab olamiz.
+        const cleaned = raw.replace(/```json|```/g, '').trim();
+        let translated;
+        try{
+          translated = JSON.parse(cleaned);
+        }catch(parseErr){
+          throw new Error('AI javobi JSON formatda emas: ' + parseErr.message);
         }
-        if(descEl && item.desc){
-          descEl.textContent = item.desc;
-          descEl.classList.add('translated');
-          if(!descEl.parentElement.querySelector('.translated-badge')){
-            const badge = document.createElement('span');
-            badge.className = 'translated-badge';
-            badge.textContent = '(AI tarjima)';
-            descEl.after(badge);
+
+        if(!Array.isArray(translated)){
+          throw new Error('AI JSON massiv qaytarmadi.');
+        }
+
+        // 3-qadam: DOM'ga chiqaramiz VA Firestore'ga yozamiz — shunda keyingi safar
+        // shu article uchun bu qadam butunlay o'tkazib yuboriladi (1-qadamda kesh topiladi).
+        await Promise.all(translated.map(async (item) => {
+          const i = item.id;
+          applyTranslation(i, item.title, item.desc);
+          const a = currentArticles[i];
+          if(!a) return;
+          try{
+            await saveTranslation(a.id, item.title || '', item.desc || '');
+          }catch(e){
+            console.warn('tarjima Firestore\'ga saqlanmadi:', e.message);
           }
-        }
-      });
+        }));
+      }
 
       translateModeOn = true;
       translateBtn.classList.add('active');
@@ -936,7 +1141,13 @@ Massiv uzunligi va "id" tartibi kiruvchi ma'lumot bilan AYNAN bir xil bo'lishi k
   // =========================================================
   function scheduleRefresh(){
     if(refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(loadFeed, 30 * 60 * 1000);
+    // Bratishka, MUHIM: agar foydalanuvchi hozir TARIX'ni ko'rib o'tirgan bo'lsa,
+    // 30 daqiqalik auto-refresh loadFeed()ni chaqirib, ekranini "bugungi feed"ga
+    // almashtirib yubormasligi kerak edi — shu yerda guard qo'yilmasa, odam
+    // 3 kun oldingi yangilikni o'qiyotganda ekran birdan sakrab ketardi.
+    refreshTimer = setInterval(() => {
+      if(currentMode === 'global' || currentMode === 'local') loadFeed();
+    }, 30 * 60 * 1000);
   }
 
   loadFeed();
