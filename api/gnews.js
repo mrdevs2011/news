@@ -35,11 +35,17 @@ export default async function handler(req, res) {
   // qolgan hamma narsani (key, lang, country) shu yerda serverda hal qilamiz.
   const mode = req.query.mode === 'local' ? 'local' : 'global';
 
+  // Bratan aytdi: umumiy siyosat-iqtisod aralashmasi kerak emas — faqat
+  // DASTURLASH / SUN'IY INTELLEKT / TEXNOLOGIYA OLAMI kerak. Shuning uchun
+  // endi top-headlines emas, "search" endpoint ishlatilyapti — GNews'ga aniq
+  // qidiruv so'zlari beramiz, faqat shu mavzudagi yangiliklar qaytadi.
+  const TECH_QUERY = '(AI OR "artificial intelligence" OR OpenAI OR Anthropic OR "Claude AI" OR ChatGPT OR Gemini OR "large language model" OR startup OR "tech company" OR Google OR Microsoft OR Apple OR Meta OR Nvidia OR Amazon OR Tesla OR SpaceX OR programming OR coding OR developer OR software OR "open source" OR GitHub OR cybersecurity OR hacking OR chip OR semiconductor OR robotics OR "video game" OR gaming OR GTA OR PlayStation OR Xbox OR Steam OR crypto OR blockchain)';
+
   let url;
   if (mode === 'global') {
-    url = `https://gnews.io/api/v4/top-headlines?lang=en&max=15&apikey=${encodeURIComponent(GNEWS_KEY)}`;
+    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&lang=en&max=15&sortby=publishedAt&apikey=${encodeURIComponent(GNEWS_KEY)}`;
   } else {
-    url = `https://gnews.io/api/v4/top-headlines?country=uz&lang=ru&max=15&apikey=${encodeURIComponent(GNEWS_KEY)}`;
+    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&country=uz&lang=ru&max=15&sortby=publishedAt&apikey=${encodeURIComponent(GNEWS_KEY)}`;
   }
 
   try {
