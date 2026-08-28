@@ -3,15 +3,17 @@
 // Key'lar Vercel Environment Variables'dan o'qiladi, brauzer ularni HECH QACHON ko'rmaydi.
 //
 // Kerakli env variable'lar (Vercel -> Settings -> Environment Variables):
-//   GROQ_KEYS        = "gsk_xxx,gsk_yyy"        (vergul bilan ajratilgan, bir nechta bo'lishi mumkin)
-//   OPENROUTER_KEYS   = "sk-or-xxx"
+//   OPENROUTER_KEYS   = "sk-or-xxx,sk-or-yyy"   (vergul yoki yangi qator bilan ajratilgan, 10+ bo'lishi mumkin)
 //
 // Bratan, Gemini butunlay olib tashlandi: Google endi yangi key'larni "AQ."
 // prefiksi bilan chiqaryapti (OAuth token formati), eski "AIza" statik key
 // formati emas — ?key= query parametr orqali ishlaydigan usul bilan mos
 // kelmaydi, 401 ACCESS_TOKEN_TYPE_UNSUPPORTED beradi. Bu — Google tomonidagi
-// platforma o'zgarishi, bizning kodimizdagi bug emas. Endi faqat Groq va
-// OpenRouter ishlaydi.
+// platforma o'zgarishi, bizning kodimizdagi bug emas.
+//
+// Groq HAM olib tashlandi: sen curl bilan test qilganingda barcha Groq
+// key'laring eskirgan/invalid chiqdi. OpenRouter esa ishladi. Endi faqat
+// OpenRouter ishlaydi, uning 10+ key'i bor.
 
 // Bratan, MUHIM TUZATISH: avval FAQAT vergul (",") bilan ajratardi. Agar
 // Vercel'ga key'larni har birini ALOHIDA QATORGA (Enter bilan) joylagan bo'lsang,
@@ -27,37 +29,13 @@ function parseKeyList(raw) {
 
 function loadKeyPools() {
   const pools = {
-    groq: parseKeyList(process.env.GROQ_KEYS),
     openrouter: parseKeyList(process.env.OPENROUTER_KEYS)
   };
   // Diagnostika: Vercel -> Project -> Logs ichida shu qatorni ko'rasan —
-  // agar bu yerda "groq=1" chiqsa-yu, sen 10+ key qo'ygan bo'lsang, demak
-  // parsing muammosi bor edi (yoki hali eski deploy ishlab turibdi — pastga qara).
-  console.log(`[key-pools] groq=${pools.groq.length} openrouter=${pools.openrouter.length}`);
+  // agar bu yerda "openrouter=1" chiqsa-yu, sen 10+ key qo'ygan bo'lsang,
+  // demak parsing muammosi bor edi (yoki hali eski deploy ishlab turibdi).
+  console.log(`[key-pools] openrouter=${pools.openrouter.length}`);
   return pools;
-}
-
-async function callGroq(key, messages) {
-  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${key}`
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      temperature: 0.4
-    })
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const err = new Error(body.error?.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content?.trim() || '';
 }
 
 async function callOpenRouter(key, messages) {
@@ -83,20 +61,21 @@ async function callOpenRouter(key, messages) {
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
 
-const CALLERS = { groq: callGroq, openrouter: callOpenRouter };
+const CALLERS = { openrouter: callOpenRouter };
 
-// Gemini olib tashlangandan keyin: 1-AYLANISH va 2-AYLANISH (retry) endi
-// AYNAN BIR XIL ro'yxat (groq -> openrouter) bo'lib qoldi. Bratan, buni
-// bilib qo'y: agar ikkalasi ORASIDA vaqt o'tmasa (masalan Groq rate-limit
-// oynasi qayta ochilishi uchun kerak bo'lgan soniyalar), ikkinchi aylanish
-// birinchisi bilan XUDDI BIR XIL natija beradi — key'lar o'zgarmagan,
-// xato sabab o'zgarmagan. Shuning uchun ikkinchi aylanishdan oldin qisqa
-// kutish (masalan 1-2 soniya) qo'shilmasa, RETRY_PASS deyarli foydasiz
-// bo'lib qoladi, faqat funksiya ishlash vaqtini (va Vercel hisobingni)
-// bekorga oshiradi. Hozircha mantiqni o'zgartirmadim — faqat shuni bilib
-// yur, keyinchalik kerak bo'lsa retry oldiga await sleep(1500) qo'shamiz.
-const FIRST_PASS = ['groq', 'openrouter'];
-const RETRY_PASS = ['groq', 'openrouter'];
+// Groq ham, Gemini ham olib tashlangach — bitta provider qoldi: OpenRouter.
+// Eski kodda 1-AYLANISH va 2-AYLANISH (retry) degan IKKI BOSQICHLI mantiq bor
+// edi, chunki 3 xil provider orasida aylanish kerak edi. Endi provider bitta
+// bo'lgach, "ikkinchi aylanish" tushunchasi ma'nosiz bo'lib qoladi — men buni
+// avvalgi kommentariyimda aytgan edim: orada hech qanday kutish (delay) yo'q,
+// shuning uchun ikkinchi aylanish bir xil 10+ key ustidan bir xil tartibda,
+// millisekundlar ichida, xuddi bir xil natija bilan qayta yuguradi. Foyda
+// yo'q, faqat funksiya vaqtini behuda cho'zadi.
+//
+// Shuning uchun ikki bosqichli mantiqni OLIB TASHLADIM — endi tryProvider()
+// OpenRouter poolini FAQAT BIR MARTA, boshidan oxirigacha (10+ key) sinaydi.
+// Bu — aslida eski mantiqning o'zi, faqat keraksiz takrorlanish yo'q.
+const OPENROUTER_POOL = 'openrouter';
 
 // Bitta provider'ning barcha key'larini TARTIB BILAN (0-indexdan boshlab, tasodifiy emas)
 // sinab chiqadi. Bratan aniq shuni so'radi: har doim DEFAULT (birinchi) key'dan
@@ -133,33 +112,20 @@ export default async function handler(req, res) {
 
   const KEY_POOLS = loadKeyPools();
 
-  // 1-AYLANISH: groq -> openrouter
-  for (const provider of FIRST_PASS) {
-    const pool = KEY_POOLS[provider];
-    if (!pool.length) continue;
-    const out = await tryProvider(provider, pool, messages);
+  // Faqat OpenRouter bor — poolni boshidan oxirigacha (10+ key) sinaymiz.
+  const pool = KEY_POOLS[OPENROUTER_POOL];
+  if (pool.length) {
+    const out = await tryProvider(OPENROUTER_POOL, pool, messages);
     if (out.ok) {
       res.status(200).json({ result: out.result, provider: out.provider });
       return;
     }
   }
 
-  // 2-AYLANISH (retry loop): 1-aylanishda HAMMASI (groq, openrouter) tugagan
-  // bo'lsa ham, ba'zan bir necha soniyada rate-limit oyna qayta ochilishi mumkin —
-  // shuning uchun groq va openrouter'ni yana bir bor sinab ko'ramiz.
-  for (const provider of RETRY_PASS) {
-    const pool = KEY_POOLS[provider];
-    if (!pool.length) continue;
-    const out = await tryProvider(provider, pool, messages);
-    if (out.ok) {
-      res.status(200).json({ result: out.result, provider: out.provider });
-      return;
-    }
-  }
-
-  // Ikkala aylanish ham quladi — endi rostini aytamiz, "AI ishlamayapti" emas,
+  // Pool bo'sh edi, yoki barcha key'lar (10+) navbat bilan sinalib,
+  // hammasi xato berdi — endi rostini aytamiz, "AI ishlamayapti" emas,
   // "hozircha bandmiz, biroz kut" degan aniq xabar.
   res.status(503).json({
-    error: "Barcha AI provayderlar (Groq, OpenRouter) hozir band yoki kunlik limitga uchagan. Iltimos, bir necha daqiqadan so'ng qayta urinib ko'ring."
+    error: "OpenRouter hozir band yoki kunlik limitga uchagan. Iltimos, bir necha daqiqadan so'ng qayta urinib ko'ring."
   });
 }
