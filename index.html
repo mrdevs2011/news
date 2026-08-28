@@ -125,9 +125,9 @@ try{
     animation:pulse 1.6s infinite;
   }
   .brand-logo{
-    width:32px;
-    height:32px;
-    border-radius:8px;
+    width:48px;
+    height:48px;
+    border-radius:12px;
     flex-shrink:0;
     display:block;
   }
@@ -201,11 +201,13 @@ try{
   html[data-theme="light"] .icon-moon{display:none;}
   .ai-btn svg{width:14px;height:14px;display:block;flex-shrink:0;}
 
-  /* TARIX tabida "Oxirgi ochilganlar" sidebar yashirin */
-  body.mode-history aside#trending{
+  /* TARIX va SAVED tabida "Oxirgi ochilganlar" sidebar yashirin */
+  body.mode-history aside#trending,
+  body.mode-saved aside#trending{
     display:none !important;
   }
-  body.mode-history main{
+  body.mode-history main,
+  body.mode-saved main{
     grid-template-columns:1fr;
   }
 
@@ -347,6 +349,37 @@ try{
     border-bottom:1px solid var(--line);
     display:flex;
     justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .feed-tools{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .feed-tool-btn{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    padding:5px 10px;
+    border-radius:999px;
+    cursor:pointer;
+    transition:border-color .2s ease, color .2s ease, background .2s ease;
+  }
+  .feed-tool-btn:hover{
+    border-color:var(--wire-amber);
+    color:var(--wire-amber);
+  }
+  .feed-tool-btn.on{
+    background:var(--wire-amber);
+    border-color:var(--wire-amber);
+    color:#0d0d0c;
   }
 
   /* HERO — birinchi story (index 0) katta blok bo'lib chiqadi, screenshot'dagi
@@ -470,19 +503,25 @@ try{
   }
   .card-more svg{ width:16px; height:16px; transition:transform .35s ease; }
   .story.open .card-more svg{ transform:rotate(180deg); }
+  /* max-height:2200px o'rniga grid 0fr/1fr — kontent balandligiga mos,
+     sahifa sakramaydi, animatsiya silliq */
   .story-more{
     grid-area:more;
     margin-top:0;
     width:100%;
-    max-height:0;
+    display:grid;
+    grid-template-rows:0fr;
     opacity:0;
-    overflow:hidden;
-    transition:max-height .55s cubic-bezier(.4,0,.2,1), opacity .4s ease, margin-top .4s ease;
+    transition:grid-template-rows .4s cubic-bezier(.4,0,.2,1), opacity .35s ease, margin-top .35s ease;
   }
   .story.open .story-more{
-    max-height:2200px;
+    grid-template-rows:1fr;
     opacity:1;
     margin-top:2px;
+  }
+  .story-more-clip{
+    overflow:hidden;
+    min-height:0;
   }
   .story-more-box{
     border:1px solid var(--line);
@@ -490,11 +529,6 @@ try{
     padding:18px 20px 14px;
     background:var(--paper);
     max-width:44rem;
-    transform:translateY(-8px);
-    transition:transform .45s cubic-bezier(.4,0,.2,1);
-  }
-  .story.open .story-more-box{
-    transform:translateY(0);
   }
   .ask-row{
     display:flex;
@@ -767,8 +801,9 @@ try{
     from{ opacity:0; transform:translateY(3px); }
     to{ opacity:1; transform:translateY(0); }
   }
-  /* Accordion ochilganda brauzer scroll-anchoring bilan "diq-diq" qilmasin */
-  #feed, #feed .story, #feed .story-more{
+  /* Brauzer scroll-anchoring sahifani hech qachon o'zi siljitmasin */
+  html, body, main, #feed, #feed-col, #feed .story, #feed .story-more,
+  #feed .story-more-clip, #feed .ai-body, #feed .chat-log, #feed .chat-panel{
     overflow-anchor:none;
   }
 
@@ -1111,7 +1146,7 @@ try{
     main{ padding:16px 14px 60px; }
     nav.top-nav{ gap:4px; }
     nav.top-nav .hdr-btn{ width:36px; height:36px; padding:6px; border-radius:10px; }
-    .brand h1{ font-size:16px; gap:6px; }
+    .brand-logo{ width:40px; height:40px; border-radius:10px; }
   }
 
   /* Markdown render qilingan matn uchun uslub — h2/h3, bold, ro'yxatlar
@@ -1151,18 +1186,17 @@ try{
   <div class="masthead-row">
     <div class="brand">
       <h1>
-        <img class="brand-logo" src="favicon.svg" width="32" height="32" alt="FMN">
-        FMN
+        <img class="brand-logo" src="favicon.svg" width="48" height="48" alt="FMN">
       </h1>
     </div>
     <nav class="top-nav" aria-label="Asosiy navigatsiya">
-      <button type="button" id="translateAllBtn" class="hdr-btn translate-btn" title="UZ tarjima / original" aria-label="UZ tarjima">
+      <button type="button" class="hdr-btn tab-btn" data-mode="saved" title="Saqlanganlar" aria-label="Saqlanganlar">
         <span class="hdr-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12.913 17H20.087M12.913 17L11 21M12.913 17L15.7783 11.009C16.0092 10.5263 16.1246 10.2849 16.2826 10.2086C16.4199 10.1423 16.5801 10.1423 16.7174 10.2086C16.8754 10.2849 16.9908 10.5263 17.2217 11.009L20.087 17M20.087 17L22 21M2 5H8M8 5H11.5M8 5V3M11.5 5H14M11.5 5C11.0039 7.95729 9.85259 10.6362 8.16555 12.8844M10 14C9.38747 13.7248 8.76265 13.3421 8.16555 12.8844M8.16555 12.8844C6.81302 11.8478 5.60276 10.4266 5 9M8.16555 12.8844C6.56086 15.0229 4.47143 16.7718 2 18"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
           </svg>
         </span>
-        <span id="translateAllLabel" class="hdr-label">UZ</span>
+        <span class="hdr-label">Saved</span>
       </button>
       <button type="button" class="hdr-btn tab-btn active" data-mode="global" title="Global" aria-label="Global">
         <span class="hdr-ico" aria-hidden="true">
@@ -1181,7 +1215,24 @@ try{
             <circle cx="12" cy="10" r="2.2"/>
           </svg>
         </span>
-        <span class="hdr-label">UZ</span>
+        <span class="hdr-label">Local</span>
+      </button>
+      <button type="button" id="translateAllBtn" class="hdr-btn translate-btn" title="UZ tarjima / original" aria-label="UZ tarjima">
+        <span class="hdr-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.913 17H20.087M12.913 17L11 21M12.913 17L15.7783 11.009C16.0092 10.5263 16.1246 10.2849 16.2826 10.2086C16.4199 10.1423 16.5801 10.1423 16.7174 10.2086C16.8754 10.2849 16.9908 10.5263 17.2217 11.009L20.087 17M20.087 17L22 21M2 5H8M8 5H11.5M8 5V3M11.5 5H14M11.5 5C11.0039 7.95729 9.85259 10.6362 8.16555 12.8844M10 14C9.38747 13.7248 8.76265 13.3421 8.16555 12.8844M8.16555 12.8844C6.81302 11.8478 5.60276 10.4266 5 9M8.16555 12.8844C6.56086 15.0229 4.47143 16.7718 2 18"/>
+          </svg>
+        </span>
+        <span id="translateAllLabel" class="hdr-label">UZ</span>
+      </button>
+      <button type="button" class="hdr-btn tab-btn" data-mode="history" title="Tarix" aria-label="Tarix">
+        <span class="hdr-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </span>
+        <span class="hdr-label">Tarix</span>
       </button>
       <button type="button" id="themeToggle" class="hdr-btn" title="Dark / Light" aria-label="Mavzu">
         <span class="hdr-ico icon-moon" aria-hidden="true">
@@ -1196,23 +1247,6 @@ try{
           </svg>
         </span>
         <span id="themeLabel" class="hdr-label">Dark</span>
-      </button>
-      <button type="button" class="hdr-btn tab-btn" data-mode="saved" title="Saqlanganlar" aria-label="Saqlanganlar">
-        <span class="hdr-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-          </svg>
-        </span>
-        <span class="hdr-label">Saved</span>
-      </button>
-      <button type="button" class="hdr-btn tab-btn" data-mode="history" title="Tarix" aria-label="Tarix">
-        <span class="hdr-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-        </span>
-        <span class="hdr-label">Tarix</span>
       </button>
     </nav>
   </div>
@@ -1231,7 +1265,11 @@ try{
   <div id="feed-col">
     <div id="feed-meta">
       <span id="feedLabel">Bugungi to'plam</span>
-      <span id="feedCount">0 TA YANGILIK</span>
+      <div class="feed-tools">
+        <button type="button" id="unreadFilterBtn" class="feed-tool-btn" title="Faqat o'qilmaganlar" aria-pressed="false">O'qilmagan</button>
+        <button type="button" id="revealToggleBtn" class="feed-tool-btn" title="AI matn animatsiyasi" aria-pressed="false">Tez matn</button>
+        <span id="feedCount">0 TA YANGILIK</span>
+      </div>
     </div>
     <div id="feed">
       <div class="placeholder">YUKLANMOQDA<span class="cursor"></span></div>
@@ -1296,18 +1334,45 @@ import {
     }
   }
 
-  // AI javobi: har bir so'z smooth paydo bo'ladi (typewriter emas).
-  // Markdown bo'lsa — oxirida to'liq renderMd qilinadi.
+  // Sahifa scrollini qotirish — more/AI/chat paytida hech qachon sakramasin
+  let _pinY = null;
+  let _pinUntil = 0;
+  let _pinRaf = 0;
+  function pinScroll(ms){
+    _pinY = window.scrollY || window.pageYOffset || 0;
+    _pinUntil = Date.now() + (ms == null ? 900 : ms);
+    const tick = () => {
+      if(Date.now() > _pinUntil){
+        _pinRaf = 0;
+        return;
+      }
+      const y = window.scrollY || 0;
+      if(_pinY != null && Math.abs(y - _pinY) > 1){
+        window.scrollTo(0, _pinY);
+      }
+      _pinRaf = requestAnimationFrame(tick);
+    };
+    if(!_pinRaf) _pinRaf = requestAnimationFrame(tick);
+  }
+  try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
+
+  // AI javobi: so'zma-so'z (ixtiyoriy) yoki darhol. wordRevealOn=false → tez.
   async function revealWordsSmooth(el, text, opts = {}){
+    pinScroll(1200);
     const safe = (text || '').toString();
-    const delay = opts.delay != null ? opts.delay : 38;
     const asMd = !!opts.markdown;
+    if(!wordRevealOn){
+      if(asMd) renderMd(el, safe);
+      else el.textContent = safe;
+      pinScroll(200);
+      return;
+    }
+    const delay = opts.delay != null ? opts.delay : 38;
     if(!safe.trim()){
       if(asMd) renderMd(el, safe);
       else el.textContent = safe;
       return;
     }
-    // So'zlarni bo'shliqlar bilan saqlab ajratamiz
     const parts = safe.split(/(\s+)/);
     el.innerHTML = '';
     el.classList.add('word-reveal');
@@ -1331,15 +1396,16 @@ import {
       spans[i].style.animationDelay = '0s';
       spans[i].style.opacity = '';
       spans[i].classList.add('wr-word');
-      // Force reflow so animation restarts per word
       void spans[i].offsetWidth;
       spans[i].style.animation = 'wordIn .28s ease forwards';
+      pinScroll(400);
       await new Promise(r => setTimeout(r, delay));
     }
     el.classList.remove('word-reveal');
     if(asMd){
       renderMd(el, safe);
     }
+    pinScroll(300);
   }
 
   // =========================================================
@@ -1400,6 +1466,8 @@ import {
   const PREF_READ = 'fmn-read';
   const PREF_LATER = 'fmn-later';
   const PREF_OPENED = 'fmn-opened';
+  const PREF_UNREAD = 'fmn-unread-only';
+  const PREF_REVEAL = 'fmn-word-reveal'; // '1' = so'zma-so'z animatsiya, default tez
 
   function readList(key){
     try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
@@ -1490,6 +1558,8 @@ import {
       localStorage.setItem(PREF_TRANSLATE, translateModeOn ? '1' : '0');
       localStorage.setItem(PREF_VISIBLE + '-' + currentMode, String(visibleCount));
       localStorage.setItem(PREF_PAGE + '-' + currentMode, String(gnewsPage));
+      localStorage.setItem(PREF_UNREAD, unreadOnly ? '1' : '0');
+      localStorage.setItem(PREF_REVEAL, wordRevealOn ? '1' : '0');
     }catch(e){}
   }
 
@@ -1497,11 +1567,16 @@ import {
     try{
       const m = localStorage.getItem(PREF_MODE);
       if(m === 'global' || m === 'local' || m === 'history' || m === 'saved') currentMode = m;
-      translateModeOn = localStorage.getItem(PREF_TRANSLATE) === '1';
+      // Birinchi ochilishda UZ default yoqiladi; keyin foydalanuvchi tanlovi saqlanadi
+      const tr = localStorage.getItem(PREF_TRANSLATE);
+      translateModeOn = tr === null ? true : tr === '1';
       const vis = parseInt(localStorage.getItem(PREF_VISIBLE + '-' + currentMode) || '', 10);
       visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
       const pg = parseInt(localStorage.getItem(PREF_PAGE + '-' + currentMode) || '', 10);
       gnewsPage = pg >= 1 ? pg : 1;
+      unreadOnly = localStorage.getItem(PREF_UNREAD) === '1';
+      // Default: tez matn (animatsiya o'chiq). '1' bo'lsa so'zma-so'z
+      wordRevealOn = localStorage.getItem(PREF_REVEAL) === '1';
     }catch(e){}
   }
 
@@ -1517,6 +1592,8 @@ import {
   // initialization" xatosi chiqadi.
   let translateModeOn = false;
   let isTranslating = false;
+  let unreadOnly = false;
+  let wordRevealOn = false; // false = tez (default)
   const originalTexts = {}; // idx -> { title, desc } — original matnlar
 
   function tickClock(){
@@ -1932,10 +2009,14 @@ import {
       : '';
 
     const noMoreBtn = opts.history || opts.saved;
-    if(!articles.length){
+    let list = articles || [];
+    if(unreadOnly && !opts.history){
+      list = list.filter(a => a && a.id && !isRead(a.id));
+    }
+    if(!list.length){
       const emptyMsg = opts.saved
-        ? 'SAQLANGAN YANGILIK YO\'Q — bookmark tugmasini bosing'
-        : 'BU KUN UCHUN YANGILIK TOPILMADI';
+        ? (unreadOnly ? 'O\'QILMAGAN SAQLANGAN YO\'Q' : 'SAQLANGAN YANGILIK YO\'Q — bookmark tugmasini bosing')
+        : (unreadOnly ? 'O\'QILMAGAN YANGILIK YO\'Q — filtrni o\'chiring' : 'BU KUN UCHUN YANGILIK TOPILMADI');
       feedEl.innerHTML = backNav + `<div class="placeholder">${emptyMsg}</div>`
         + (noMoreBtn ? '' : `<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn" title="Yana 5 ta">${MORE_BTN_HTML}</button></div>`);
       feedCount.textContent = '0 TA YANGILIK';
@@ -1944,14 +2025,16 @@ import {
       if(emptyMore) emptyMore.addEventListener('click', loadMoreNews);
       return;
     }
-    const shown = (opts.history || opts.saved) ? articles : articles.slice(0, visibleCount);
-    feedCount.textContent = shown.length + ' TA YANGILIK';
+    const shown = (opts.history || opts.saved) ? list : list.slice(0, visibleCount);
+    feedCount.textContent = shown.length + ' TA YANGILIK' + (unreadOnly ? ' (o\'qilmagan)' : '');
     // Bratishka, MUHIM: birinchi story (i===0) endi ".hero" klassi bilan
     // chiqadi — katta rasm-o'rni + katta sarlavha, screenshot'dagidek.
     // ID'lar (title-link-${i}, desc-${i} va h.k.) HECH O'ZGARMAGAN — shuning
     // uchun handleExplain/toggleDiscuss/translate logikasi butunlay ishlayveradi.
     feedEl.innerHTML = backNav + shown.map((a, i) => {
-      const num = String(i+1).padStart(2,'0');
+      // Unread filtrida ko'rsatilgan tartib != currentArticles index — id orqali topamiz
+      let realIdx = (currentArticles || []).findIndex(x => x && x.id === a.id);
+      if(realIdx < 0) realIdx = i;
       const src = sourceName(a);
       const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
       const savedDate = a.savedAt ? new Date(a.savedAt).toLocaleString('uz-UZ') : '';
@@ -1965,41 +2048,43 @@ import {
         ? `<div class="story-thumb"><img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(a.title || src)}" loading="${isHero ? 'eager' : 'lazy'}" onerror="this.remove()"></div>`
         : `<div class="story-thumb">${escapeHtml(src)}</div>`;
       return `
-        <article class="story${isHero ? ' hero' : ''}${isRead(a.id) ? ' read' : ''}" data-idx="${i}" data-id="${a.id}">
+        <article class="story${isHero ? ' hero' : ''}${isRead(a.id) ? ' read' : ''}" data-idx="${realIdx}" data-id="${a.id}">
           <div class="story-top">
           ${thumb}
           <div class="story-body">
           <div class="story-index">${isHero ? '<span class="src">BUGUNGI ENG MASHHUR</span>' : ''}${opts.saved ? '<span class="src">SAQLANGAN</span>' : ''}<span class="src">${escapeHtml(src)}</span></div>
-            <h2 id="title-${i}"><a href="${a.url}" target="_blank" rel="noopener" id="title-link-${i}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
-            <p class="desc" id="desc-${i}">${desc}</p>
+            <h2 id="title-${realIdx}"><a href="${a.url}" target="_blank" rel="noopener" id="title-link-${realIdx}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
+            <p class="desc" id="desc-${realIdx}">${desc}</p>
             <div class="meta">${date}</div>
             <div class="card-actions">
               <button type="button" class="later-btn${isLater(a.id) ? ' on' : ''}" data-action="later" data-id="${a.id}" title="${isLater(a.id) ? 'Saqlangan — bosib olib tashlash' : 'Saqlash'}" aria-pressed="${isLater(a.id) ? 'true' : 'false'}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </button>
-              <button type="button" class="card-more" data-action="more" data-idx="${i}" title="Batafsil / yopish" aria-label="More">
+              <button type="button" class="card-more" data-action="more" data-idx="${realIdx}" title="Batafsil / yopish" aria-label="More">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
               </button>
             </div>
           </div>
           </div>
-          <div class="story-more" id="story-more-${i}">
-            <div class="story-more-box">
-              <div class="ai-panel show" id="ai-panel-${i}">
-                <div class="ai-tag"><span>TARJIMA</span><span></span></div>
-                <div class="ai-body" id="ai-translate-body-${i}"></div>
-                <div class="ai-tag" style="margin-top:12px;"><span>AI TUSHUNTIRISHI</span><span></span></div>
-                <div class="ai-body" id="ai-body-${i}"></div>
+          <div class="story-more" id="story-more-${realIdx}">
+            <div class="story-more-clip">
+              <div class="story-more-box">
+                <div class="ai-panel show" id="ai-panel-${realIdx}">
+                  <div class="ai-tag"><span>TARJIMA</span><span></span></div>
+                  <div class="ai-body" id="ai-translate-body-${realIdx}"></div>
+                  <div class="ai-tag" style="margin-top:12px;"><span>AI TUSHUNTIRISHI</span><span></span></div>
+                  <div class="ai-body" id="ai-body-${realIdx}"></div>
+                </div>
+                <div class="chat-panel show" id="chat-panel-${realIdx}">
+                  <div class="chat-log" id="chat-log-${realIdx}"></div>
+                </div>
               </div>
-              <div class="chat-panel show" id="chat-panel-${i}">
-                <div class="chat-log" id="chat-log-${i}"></div>
+              <div class="ask-row">
+                <input type="text" id="chat-input-${realIdx}" placeholder="ask ai...">
+                <button data-action="send" data-idx="${realIdx}" title="Yuborish">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></svg>
+                </button>
               </div>
-            </div>
-            <div class="ask-row">
-              <input type="text" id="chat-input-${i}" placeholder="ask ai...">
-              <button data-action="send" data-idx="${i}" title="Yuborish">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></svg>
-              </button>
             </div>
           </div>
         </article>`;
@@ -2415,49 +2500,28 @@ import {
     const card = document.querySelector(`.story[data-idx="${idx}"]`);
     if(!card) return;
 
-    // Accordion ochilganda / yopilganda sahifa hech qachon auto-scroll qilmasin
-    const lockedY = window.scrollY || window.pageYOffset || 0;
-    const lockScroll = () => {
-      if(Math.abs((window.scrollY || 0) - lockedY) > 1){
-        window.scrollTo(0, lockedY);
-      }
-    };
+    // Ochish/yopish + AI yuklanishi davomida scroll qotadi
+    pinScroll(1400);
 
-    // Accordion: boshqa ochiq more'larni yopamiz (joriy ochilayotgan bo'lsa)
-    const willOpen = !card.classList.contains('open');
-    if(willOpen){
-      document.querySelectorAll('#feed .story.open').forEach(other => {
-        if(other !== card){
-          other.classList.remove('open');
-          const ob = other.querySelector('.card-more');
-          if(ob) ob.setAttribute('title', 'Batafsil');
-        }
-      });
-    }
-
+    // Bir nechta card bir vaqtda ochiq bo'lishi mumkin (accordion yo'q)
     const open = card.classList.toggle('open');
     const moreBtn = card.querySelector('.card-more');
     if(moreBtn) moreBtn.setAttribute('title', open ? 'Yopish' : 'Batafsil');
 
-    // Layout o'zgarishi (max-height) scrollni silkitmasin
-    lockScroll();
-    requestAnimationFrame(lockScroll);
-    setTimeout(lockScroll, 50);
-    setTimeout(lockScroll, 120);
-    setTimeout(lockScroll, 280);
-    setTimeout(lockScroll, 560);
+    pinScroll(1400);
 
     if(open){
       const a = currentArticles[idx];
       markOpened(a);
       card.classList.add('read');
       renderTrending(currentArticles);
-      // Smooth: avval panel ochiladi, keyin tarjima + AI ketma-ket keladi
-      await new Promise(r => setTimeout(r, 280));
-      lockScroll();
+      // Panel ochilish animatsiyasi — scroll o'zgarmasin
+      await new Promise(r => setTimeout(r, 320));
+      pinScroll(2000);
       await toggleDiscuss(idx);
+      pinScroll(2000);
       await handleExplain(idx);
-      lockScroll();
+      pinScroll(600);
     }
   }
 
@@ -2468,6 +2532,7 @@ import {
     const body = document.getElementById(`ai-body-${idx}`);
     const translateBody = document.getElementById(`ai-translate-body-${idx}`);
     if(!panel || !body || !translateBody) return;
+    pinScroll(2500);
     if(btn) btn.disabled = true;
     panel.classList.add('show');
 
@@ -2667,6 +2732,7 @@ QATIY USLUB:
     const text = input.value.trim();
     if(!text) return;
 
+    pinScroll(2500);
     const a = currentArticles[idx];
     if(!chatHistories[idx]) await toggleDiscuss(idx);
 
@@ -2676,13 +2742,14 @@ QATIY USLUB:
     input.disabled = true;
     btn.disabled = true;
 
-    // Firestore'ga yozamiz — kutmasdan (UI bloklanmasin), lekin xatoni log qilamiz.
     appendChatMessage(a.id, 'user', text).catch(e => console.warn('chat write xato:', e.message));
 
     const thinkingEl = appendChatMsg(log, 'ai', 'AI yozmoqda...', { loading: true });
+    pinScroll(2500);
 
     try{
       const result = await aiChat(chatHistories[idx]);
+      pinScroll(2000);
       thinkingEl.classList.remove('ai-loading-msg');
       await revealWordsSmooth(thinkingEl, result, { markdown: true, delay: 34 });
       chatHistories[idx].push({ role: 'assistant', content: result });
@@ -2693,13 +2760,15 @@ QATIY USLUB:
     }finally{
       input.disabled = false;
       btn.disabled = false;
-      try{ input.focus({ preventScroll: true }); }catch(_){ input.focus(); }
-      // Faqat chat-log ichida — sahifa auto-scroll qilinmaydi
-      log.scrollTop = log.scrollHeight;
+      try{ input.focus({ preventScroll: true }); }catch(_){}
+      // Faqat chat-log ichida pastga — window scroll qilinmaydi
+      try{ log.scrollTop = log.scrollHeight; }catch(_){}
+      pinScroll(400);
     }
   }
 
   function appendChatMsg(log, role, text, opts = {}){
+    pinScroll(600);
     const div = document.createElement('div');
     div.className = 'chat-msg ' + role;
     // Bratishka, MUHIM: faqat AI xabari markdown sifatida render qilinadi.
@@ -2715,8 +2784,8 @@ QATIY USLUB:
       div.textContent = text;
     }
     log.appendChild(div);
-    // Chat ichida pastga — lekin window/sahifa scroll qilinmaydi
-    log.scrollTop = log.scrollHeight;
+    try{ log.scrollTop = log.scrollHeight; }catch(_){}
+    pinScroll(400);
     return div;
   }
 
@@ -2925,6 +2994,51 @@ QATIY USLUB:
     if(translateLabel) translateLabel.textContent = 'ORIG';
     translateBtn.setAttribute('title', 'Original tilga qaytarish');
   }
+  // Birinchi tashrif: UZ default — pref ni yozib qo'yamiz
+  try{
+    if(localStorage.getItem(PREF_TRANSLATE) === null){
+      localStorage.setItem(PREF_TRANSLATE, '1');
+      translateModeOn = true;
+      translateBtn.classList.add('active');
+      if(translateLabel) translateLabel.textContent = 'ORIG';
+    }
+  }catch(e){}
+
+  const unreadBtn = document.getElementById('unreadFilterBtn');
+  const revealBtn = document.getElementById('revealToggleBtn');
+  function syncToolBtns(){
+    if(unreadBtn){
+      unreadBtn.classList.toggle('on', unreadOnly);
+      unreadBtn.setAttribute('aria-pressed', unreadOnly ? 'true' : 'false');
+    }
+    if(revealBtn){
+      // "Tez matn" ON = animatsiya OFF
+      const fast = !wordRevealOn;
+      revealBtn.classList.toggle('on', fast);
+      revealBtn.setAttribute('aria-pressed', fast ? 'true' : 'false');
+      revealBtn.textContent = fast ? 'Tez matn' : 'Sekin matn';
+    }
+  }
+  syncToolBtns();
+  if(unreadBtn){
+    unreadBtn.addEventListener('click', () => {
+      unreadOnly = !unreadOnly;
+      savePrefs();
+      syncToolBtns();
+      if(currentMode === 'saved') loadSavedFeed();
+      else if(currentMode === 'history'){ /* kunlar ro'yxati — o'zgarmaydi */ }
+      else if(currentArticles.length) renderFeed(currentArticles);
+      else loadFeed();
+    });
+  }
+  if(revealBtn){
+    revealBtn.addEventListener('click', () => {
+      wordRevealOn = !wordRevealOn;
+      savePrefs();
+      syncToolBtns();
+    });
+  }
+
   if(currentMode === 'history'){
     feedLabel.textContent = "TARIX — KUNLARNI TANLA";
     renderDayList();
