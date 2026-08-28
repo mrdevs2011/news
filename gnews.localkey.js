@@ -6,4 +6,4 @@
 // bu fayl wire-news-dashboard.html bilan BIR papkada turishi shart.
 // ============================================================
 
-window.GNEWS_KEY = ""; // o'z GNews API key'ingni shu yerga yoz
+window.GNEWS_KEY = "dbdbebfdef394ba70885c1485133b368"; // o'z GNews API key'ingni shu yerga yoz
