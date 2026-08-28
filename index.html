@@ -378,16 +378,18 @@
   </div>
 </main>
 
-<footer>WIRE TERMINAL — GNews + AI (Groq → OpenRouter → Gemini) — key'lar config.local.js va gnews.localkey.js ichida</footer>
+<footer>WIRE TERMINAL — GNews (server proxy) + AI (Groq → OpenRouter → Gemini) — GNews key Vercel env'da, AI key'lar config.local.js ichida</footer>
 
 <!--
-  Bratan: key'laring shu yerda emas.
-  AI key'lar (groq/openrouter/gemini) -> config.local.js
-  GNews key -> gnews.localkey.js
-  Ikkalasi ham HTML bilan bir papkada turishi shart, va hech qachon git'ga/hostingga tushmasin.
+  Bratan: GNews key endi bu yerda YO'Q — u Vercel Environment Variables
+  ichida, /api/gnews.js orqali server tomonda ishlatiladi. Frontend
+  uni hech qachon ko'rmaydi.
+
+  AI key'lar (groq/openrouter/gemini) hali ham config.local.js da —
+  bu HALI HAM xavfli agar public deploy qilsang. Bu haqida alohida
+  gaplashamiz keyingi qadamda.
 -->
 <script src="config.local.js"></script>
-<script src="gnews.localkey.js"></script>
 
 <script>
 (function(){
@@ -395,7 +397,6 @@
   // 0) CONFIG / KEY POOLS
   // =========================================================
   const CFG = window.WIRE_KEYS || {};
-  const GNEWS_KEY = window.GNEWS_KEY || '';
   const KEY_POOLS = {
     groq: Array.isArray(CFG.groq) ? CFG.groq.filter(Boolean) : [],
     openrouter: Array.isArray(CFG.openrouter) ? CFG.openrouter.filter(Boolean) : [],
@@ -598,29 +599,17 @@
   });
 
   async function loadFeed(){
-    if(!GNEWS_KEY){
-      feedEl.innerHTML = '<div class="error-box">GNEWS KEY YO\'Q — gnews.localkey.js ichidagi GNEWS_KEY o\'zgaruvchisiga key qo\'y.</div>';
-      statusLine.textContent = 'KEY YO\'Q';
-      return;
-    }
-
     statusLine.textContent = 'YUKLANMOQDA...';
     feedEl.innerHTML = '<div class="placeholder">SO\'ROV YUBORILMOQDA<span class="cursor"></span></div>';
 
-    let url;
-    if(currentMode === 'global'){
-      url = `https://gnews.io/api/v4/top-headlines?lang=en&max=15&apikey=${encodeURIComponent(GNEWS_KEY)}`;
-    } else {
-      url = `https://gnews.io/api/v4/top-headlines?country=uz&lang=ru&max=15&apikey=${encodeURIComponent(GNEWS_KEY)}`;
-    }
+    const url = `/api/gnews?mode=${currentMode}`;
 
     try{
       const res = await fetch(url);
+      const data = await res.json().catch(() => ({}));
       if(!res.ok){
-        const errBody = await res.json().catch(() => ({}));
-        throw new Error(`HTTP ${res.status}: ${errBody.errors ? errBody.errors.join(', ') : res.statusText}`);
+        throw new Error(data.error || `HTTP ${res.status}`);
       }
-      const data = await res.json();
       currentArticles = data.articles || [];
       renderFeed(currentArticles);
       statusLine.textContent = 'LIVE — OXIRGI YANGILANISH: ' + new Date().toLocaleTimeString('uz-UZ',{hour12:false});
@@ -628,7 +617,7 @@
       console.error(err);
       feedEl.innerHTML = `<div class="error-box">
         XATOLIK YUZ BERDI: ${escapeHtml(err.message)}<br><br>
-        Tekshir: 1) API key to'g'rimi? 2) Kunlik limit (100) tugamadimi? 3) "uz" mamlakati uchun local yangilik kam bo'lishi mumkin — global tab'ni sinab ko'r.
+        Tekshir: 1) Vercel'da GNEWS_KEY environment variable qo'yilganmi? 2) Kunlik limit (100) tugamadimi? 3) "uz" mamlakati uchun local yangilik kam bo'lishi mumkin — global tab'ni sinab ko'r.
       </div>`;
       statusLine.textContent = 'XATOLIK';
     }
