@@ -124,6 +124,13 @@ try{
     display:inline-block;
     animation:pulse 1.6s infinite;
   }
+  .brand-logo{
+    width:32px;
+    height:32px;
+    border-radius:8px;
+    flex-shrink:0;
+    display:block;
+  }
 
   nav.top-nav{
     display:flex;
@@ -273,14 +280,6 @@ try{
   }
   .desc.translated, h2.translated a{
     color: var(--wire-green);
-  }
-  .translated-badge{
-    font-family:var(--mono);
-    font-size:9px;
-    color:var(--wire-green);
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    margin-left:6px;
   }
 
   /* Bratan, pastki "control-bar" — soat, DB/AI status, tarjima tugmasi va
@@ -449,9 +448,26 @@ try{
     align-items:center;
     justify-content:center;
     cursor:pointer;
+    transition:background-color .25s ease, border-color .25s ease, color .25s ease, transform .2s ease, box-shadow .25s ease;
   }
-  .later-btn svg{ width:16px; height:16px; }
-  .later-btn.on{ border-color:var(--wire-amber); color:var(--wire-amber); }
+  .later-btn svg{ width:16px; height:16px; fill:none; stroke:currentColor; transition:fill .2s ease; }
+  .later-btn:hover{ border-color:var(--wire-amber); color:var(--wire-amber); }
+  /* Saqlangan — butun tugma orange, doim shunday turadi */
+  .later-btn.on{
+    background:var(--wire-amber);
+    border-color:var(--wire-amber);
+    color:#0d0d0c;
+    box-shadow:0 0 0 1px color-mix(in srgb, var(--wire-amber) 40%, transparent);
+  }
+  .later-btn.on svg{
+    fill:currentColor;
+    stroke:currentColor;
+  }
+  .later-btn.on:hover{
+    background:color-mix(in srgb, var(--wire-amber) 88%, #fff);
+    border-color:color-mix(in srgb, var(--wire-amber) 88%, #fff);
+    color:#0d0d0c;
+  }
   .card-more svg{ width:16px; height:16px; transition:transform .35s ease; }
   .story.open .card-more svg{ transform:rotate(180deg); }
   .story-more{
@@ -717,6 +733,43 @@ try{
     font-style:italic;
     opacity:.75;
     animation:pulse 1.6s infinite;
+    outline:none !important;
+    border:none !important;
+    box-shadow:none !important;
+    user-select:none;
+    -webkit-user-select:none;
+    pointer-events:none;
+    background:transparent !important;
+  }
+  .ai-loading-msg{
+    outline:none !important;
+    border:none !important;
+    box-shadow:none !important;
+    user-select:none;
+  }
+  .ai-body, .ai-body *{
+    outline:none !important;
+  }
+  .ai-body:focus, .ai-body:focus-visible,
+  .chat-msg:focus, .chat-msg:focus-visible{
+    outline:none !important;
+  }
+  /* So'zma-so'z smooth paydo bo'lish — typewriter emas */
+  .word-reveal{
+    display:inline;
+  }
+  .word-reveal .wr-word{
+    display:inline;
+    opacity:0;
+    animation:wordIn .28s ease forwards;
+  }
+  @keyframes wordIn{
+    from{ opacity:0; transform:translateY(3px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  /* Accordion ochilganda brauzer scroll-anchoring bilan "diq-diq" qilmasin */
+  #feed, #feed .story, #feed .story-more{
+    overflow-anchor:none;
   }
 
   /* =========================================================
@@ -973,17 +1026,6 @@ try{
     line-height:1.6;
   }
 
-  footer{
-    text-align:center;
-    font-family:var(--mono);
-    font-size:10px;
-    color:var(--ink-dim);
-    padding:24px;
-    border-top:1px solid var(--line);
-    text-transform:uppercase;
-    letter-spacing:.08em;
-  }
-
   .day-list{
     display:flex;
     flex-direction:column;
@@ -1108,18 +1150,16 @@ try{
 <header>
   <div class="masthead-row">
     <div class="brand">
-      <h1><span class="blink"></span>FMN</h1>
+      <h1>
+        <img class="brand-logo" src="favicon.svg" width="32" height="32" alt="FMN">
+        FMN
+      </h1>
     </div>
     <nav class="top-nav" aria-label="Asosiy navigatsiya">
       <button type="button" id="translateAllBtn" class="hdr-btn translate-btn" title="UZ tarjima / original" aria-label="UZ tarjima">
         <span class="hdr-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 8l6 0"/>
-            <path d="M7 8v8"/>
-            <path d="M11 12h6"/>
-            <path d="M14 8v8"/>
-            <path d="M3 4h18"/>
-            <path d="M5 20h14"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12.913 17H20.087M12.913 17L11 21M12.913 17L15.7783 11.009C16.0092 10.5263 16.1246 10.2849 16.2826 10.2086C16.4199 10.1423 16.5801 10.1423 16.7174 10.2086C16.8754 10.2849 16.9908 10.5263 17.2217 11.009L20.087 17M20.087 17L22 21M2 5H8M8 5H11.5M8 5V3M11.5 5H14M11.5 5C11.0039 7.95729 9.85259 10.6362 8.16555 12.8844M10 14C9.38747 13.7248 8.76265 13.3421 8.16555 12.8844M8.16555 12.8844C6.81302 11.8478 5.60276 10.4266 5 9M8.16555 12.8844C6.56086 15.0229 4.47143 16.7718 2 18"/>
           </svg>
         </span>
         <span id="translateAllLabel" class="hdr-label">UZ</span>
@@ -1204,8 +1244,6 @@ try{
   </aside>
 </main>
 
-<footer>FMN — ForMrNews — GNews (server proxy) + AI (server proxy) + Firestore (arxiv &amp; chat tarixi)</footer>
-
 <!--
   Bratan, o'zgarishlar shu yerda:
   1) AI key'lar butunlay frontend'dan olib tashlandi. Endi /api/ai-chat orqali
@@ -1255,6 +1293,52 @@ import {
       el.innerHTML = html;
     }else{
       el.textContent = safeText; // fallback — marked/DOMPurify yuklanmagan
+    }
+  }
+
+  // AI javobi: har bir so'z smooth paydo bo'ladi (typewriter emas).
+  // Markdown bo'lsa — oxirida to'liq renderMd qilinadi.
+  async function revealWordsSmooth(el, text, opts = {}){
+    const safe = (text || '').toString();
+    const delay = opts.delay != null ? opts.delay : 38;
+    const asMd = !!opts.markdown;
+    if(!safe.trim()){
+      if(asMd) renderMd(el, safe);
+      else el.textContent = safe;
+      return;
+    }
+    // So'zlarni bo'shliqlar bilan saqlab ajratamiz
+    const parts = safe.split(/(\s+)/);
+    el.innerHTML = '';
+    el.classList.add('word-reveal');
+    const frag = document.createDocumentFragment();
+    const spans = [];
+    for(const p of parts){
+      if(!p) continue;
+      if(/^\s+$/.test(p)){
+        frag.appendChild(document.createTextNode(p));
+      }else{
+        const span = document.createElement('span');
+        span.className = 'wr-word';
+        span.textContent = p;
+        span.style.opacity = '0';
+        frag.appendChild(span);
+        spans.push(span);
+      }
+    }
+    el.appendChild(frag);
+    for(let i = 0; i < spans.length; i++){
+      spans[i].style.animationDelay = '0s';
+      spans[i].style.opacity = '';
+      spans[i].classList.add('wr-word');
+      // Force reflow so animation restarts per word
+      void spans[i].offsetWidth;
+      spans[i].style.animation = 'wordIn .28s ease forwards';
+      await new Promise(r => setTimeout(r, delay));
+    }
+    el.classList.remove('word-reveal');
+    if(asMd){
+      renderMd(el, safe);
     }
   }
 
@@ -1890,7 +1974,7 @@ import {
             <p class="desc" id="desc-${i}">${desc}</p>
             <div class="meta">${date}</div>
             <div class="card-actions">
-              <button type="button" class="later-btn${isLater(a.id) ? ' on' : ''}" data-action="later" data-id="${a.id}" title="Saqlash / chiqarish">
+              <button type="button" class="later-btn${isLater(a.id) ? ' on' : ''}" data-action="later" data-id="${a.id}" title="${isLater(a.id) ? 'Saqlangan — bosib olib tashlash' : 'Saqlash'}" aria-pressed="${isLater(a.id) ? 'true' : 'false'}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </button>
               <button type="button" class="card-more" data-action="more" data-idx="${i}" title="Batafsil / yopish" aria-label="More">
@@ -1935,6 +2019,8 @@ import {
         const article = (currentArticles || []).find(a => a.id === id);
         const on = toggleLater(id, article);
         btn.classList.toggle('on', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('title', on ? 'Saqlangan — bosib olib tashlash' : 'Saqlash');
         // SAQLANGANLAR tabida chiqarib yuborsa — ro'yxatni qayta chizamiz
         if(currentMode === 'saved' && !on){
           loadSavedFeed();
@@ -2114,7 +2200,7 @@ import {
         e.preventDefault();
         const target = document.querySelector(`.story[data-id="${link.dataset.openId}"]`);
         if(target){
-          target.scrollIntoView({ behavior:'smooth', block:'start' });
+          // Autoscroll yo'q — faqat more ochiladi
           const idx = Number(target.dataset.idx);
           if(!target.classList.contains('open')) toggleCardMore(idx);
         }
@@ -2329,6 +2415,14 @@ import {
     const card = document.querySelector(`.story[data-idx="${idx}"]`);
     if(!card) return;
 
+    // Accordion ochilganda / yopilganda sahifa hech qachon auto-scroll qilmasin
+    const lockedY = window.scrollY || window.pageYOffset || 0;
+    const lockScroll = () => {
+      if(Math.abs((window.scrollY || 0) - lockedY) > 1){
+        window.scrollTo(0, lockedY);
+      }
+    };
+
     // Accordion: boshqa ochiq more'larni yopamiz (joriy ochilayotgan bo'lsa)
     const willOpen = !card.classList.contains('open');
     if(willOpen){
@@ -2344,6 +2438,15 @@ import {
     const open = card.classList.toggle('open');
     const moreBtn = card.querySelector('.card-more');
     if(moreBtn) moreBtn.setAttribute('title', open ? 'Yopish' : 'Batafsil');
+
+    // Layout o'zgarishi (max-height) scrollni silkitmasin
+    lockScroll();
+    requestAnimationFrame(lockScroll);
+    setTimeout(lockScroll, 50);
+    setTimeout(lockScroll, 120);
+    setTimeout(lockScroll, 280);
+    setTimeout(lockScroll, 560);
+
     if(open){
       const a = currentArticles[idx];
       markOpened(a);
@@ -2351,8 +2454,10 @@ import {
       renderTrending(currentArticles);
       // Smooth: avval panel ochiladi, keyin tarjima + AI ketma-ket keladi
       await new Promise(r => setTimeout(r, 280));
+      lockScroll();
       await toggleDiscuss(idx);
       await handleExplain(idx);
+      lockScroll();
     }
   }
 
@@ -2389,12 +2494,12 @@ import {
         translateBody.classList.remove('fade-in');
         void translateBody.offsetWidth;
         translateBody.classList.add('fade-in');
-        renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
-        await new Promise(r => setTimeout(r, 220));
+        await revealWordsSmooth(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''), { markdown: true, delay: 32 });
+        await new Promise(r => setTimeout(r, 120));
         body.classList.remove('fade-in');
         void body.offsetWidth;
         body.classList.add('fade-in');
-        renderMd(body, cached.aiSharh || cached.explainResult);
+        await revealWordsSmooth(body, cached.aiSharh || cached.explainResult, { markdown: true, delay: 32 });
         return;
       }
     }catch(e){
@@ -2448,9 +2553,9 @@ import {
       translateBody.classList.remove('fade-in');
       void translateBody.offsetWidth;
       translateBody.classList.add('fade-in');
-      renderMd(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''));
+      await revealWordsSmooth(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''), { markdown: true, delay: 32 });
     }catch(err){
-      renderMd(translateBody, 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.');
+      await revealWordsSmooth(translateBody, 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.', { delay: 28 });
     }
 
     // 2-qadam: Groq — endi asl matn emas, TARJIMA QILINGAN o'zbekcha matn
@@ -2480,7 +2585,7 @@ Murakkab so'zlarni tushuntir. Taxminni fakt qilib yozma. Sarlavhani takrorlama.`
       body.classList.remove('fade-in');
       void body.offsetWidth;
       body.classList.add('fade-in');
-      renderMd(body, result || 'AI bo\'sh javob qaytardi.');
+      await revealWordsSmooth(body, result || 'AI bo\'sh javob qaytardi.', { markdown: true, delay: 32 });
 
       // Natijani (tarjima + tushuntirish) birgalikda Firestore'ga yozamiz —
       // keyingi safar shu article uchun 0-qadam buni topadi va na tarjima,
@@ -2574,36 +2679,43 @@ QATIY USLUB:
     // Firestore'ga yozamiz — kutmasdan (UI bloklanmasin), lekin xatoni log qilamiz.
     appendChatMessage(a.id, 'user', text).catch(e => console.warn('chat write xato:', e.message));
 
-    const thinkingEl = appendChatMsg(log, 'ai', 'AI yozmoqda...');
+    const thinkingEl = appendChatMsg(log, 'ai', 'AI yozmoqda...', { loading: true });
 
     try{
       const result = await aiChat(chatHistories[idx]);
-      thinkingEl.textContent = result;
+      thinkingEl.classList.remove('ai-loading-msg');
+      await revealWordsSmooth(thinkingEl, result, { markdown: true, delay: 34 });
       chatHistories[idx].push({ role: 'assistant', content: result });
       appendChatMessage(a.id, 'assistant', result).catch(e => console.warn('chat write xato:', e.message));
     }catch(err){
+      thinkingEl.classList.remove('ai-loading-msg');
       thinkingEl.textContent = 'XATOLIK: ' + err.message;
     }finally{
       input.disabled = false;
       btn.disabled = false;
-      input.focus();
+      try{ input.focus({ preventScroll: true }); }catch(_){ input.focus(); }
+      // Faqat chat-log ichida — sahifa auto-scroll qilinmaydi
       log.scrollTop = log.scrollHeight;
     }
   }
 
-  function appendChatMsg(log, role, text){
+  function appendChatMsg(log, role, text, opts = {}){
     const div = document.createElement('div');
     div.className = 'chat-msg ' + role;
     // Bratishka, MUHIM: faqat AI xabari markdown sifatida render qilinadi.
     // User yozgan matnni HAR DOIM xom textContent qilib qo'yamiz — u odam
     // yozgan matn, uni HTML/markdown deb parse qilishning hojati yo'q va
     // xavfsizlik nuqtai nazaridan ham to'g'ri emas.
-    if(role === 'ai'){
+    if(opts.loading){
+      div.classList.add('ai-loading-msg');
+      div.innerHTML = '<span class="ai-loading">' + (text || '...') + '</span>';
+    }else if(role === 'ai'){
       renderMd(div, text);
     }else{
       div.textContent = text;
     }
     log.appendChild(div);
+    // Chat ichida pastga — lekin window/sahifa scroll qilinmaydi
     log.scrollTop = log.scrollHeight;
     return div;
   }
@@ -2642,8 +2754,6 @@ QATIY USLUB:
       if(descEl){
         descEl.textContent = orig.desc;
         descEl.classList.remove('translated');
-        const badge = descEl.parentElement.querySelector('.translated-badge');
-        if(badge) badge.remove();
       }
     });
     translateModeOn = false;
@@ -2669,12 +2779,6 @@ QATIY USLUB:
     if(descEl && desc){
       descEl.textContent = desc;
       descEl.classList.add('translated');
-      if(!descEl.parentElement.querySelector('.translated-badge')){
-        const badge = document.createElement('span');
-        badge.className = 'translated-badge';
-        badge.textContent = '(tarjima)';
-        descEl.after(badge);
-      }
     }
   }
 
@@ -2843,7 +2947,9 @@ QATIY USLUB:
     const next = e.key.toLowerCase() === 'j' ? Math.min(cards.length - 1, i + 1) : Math.max(0, i - 1);
     const card = cards[next];
     if(!card) return;
-    card.scrollIntoView({ behavior:'smooth', block:'start' });
+    // Autoscroll yo'q — faqat more ochish/yopish
+    const idx = Number(card.dataset.idx);
+    if(!Number.isNaN(idx)) toggleCardMore(idx);
   });
 
   scheduleRefresh();
