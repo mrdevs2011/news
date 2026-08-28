@@ -16,16 +16,16 @@ try{
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
   :root, html[data-theme="dark"]{
-    --paper:#0d0d0c;
-    --paper-raised:#161613;
-    --ink:#ecebe4;
-    --ink-dim:#8a8a7d;
-    --wire-red:#c23b2e;
-    --wire-amber:#d9a441;
-    --wire-green:#5a9b6f;
-    --line:#2a2a24;
-    --btn:#161616;
-    --btn-hover:#1f1f1f;
+    --paper:#16140f;
+    --paper-raised:#1f1c16;
+    --ink:#e8e2d6;
+    --ink-dim:#a39b8c;
+    --wire-red:#c45a4c;
+    --wire-amber:#e08a63;
+    --wire-green:#d97757;
+    --line:#2f2b24;
+    --btn:#1f1c16;
+    --btn-hover:#2a261f;
     --radius:14px;
     --radius-sm:10px;
     --shadow:0 10px 30px rgba(0,0,0,.28);
@@ -34,16 +34,16 @@ try{
     color-scheme: dark;
   }
   html[data-theme="light"]{
-    --paper:#f3efe6;
-    --paper-raised:#fffdf8;
-    --ink:#1b1914;
-    --ink-dim:#6d6a60;
-    --wire-red:#c23b2e;
-    --wire-amber:#a87412;
-    --wire-green:#2f6d48;
-    --line:#ddd6c8;
-    --btn:#ffffff;
-    --btn-hover:#f7f3ea;
+    --paper:#f3eadc;
+    --paper-raised:#f8f2e6;
+    --ink:#2a241c;
+    --ink-dim:#5e574b;
+    --wire-red:#b54a3d;
+    --wire-amber:#b5563a;
+    --wire-green:#c15f3c;
+    --line:#e0d5c3;
+    --btn:#f8f2e6;
+    --btn-hover:#efe6d4;
     --shadow:0 10px 28px rgba(40,32,16,.08);
     color-scheme: light;
   }
@@ -63,9 +63,18 @@ try{
     background:var(--paper);
     color:var(--ink);
     font-family:var(--serif);
+    font-size:17px;
+    line-height:1.65;
     min-height:100vh;
     -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
     transition:background-color .35s ease, color .35s ease;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *, *::before, *::after{
+      animation:none !important;
+      transition:none !important;
+    }
   }
 
   /* Butun sayt bo'ylab bitta xira, tor, dark-theme scrollbar —
@@ -369,7 +378,7 @@ try{
     inset:0;
     transition:transform .45s ease;
   }
-  .story:hover .story-thumb img{ transform:scale(1.04); }
+  .story:hover .story-thumb img{ transform:scale(1.015); }
   .story-body{
     grid-area:body;
     min-width:0;
@@ -427,8 +436,9 @@ try{
   .story-more-box{
     border:1px solid var(--line);
     border-radius:18px;
-    padding:16px 16px 12px;
+    padding:18px 20px 14px;
     background:var(--paper);
+    max-width:44rem;
   }
   .ask-row{
     display:flex;
@@ -484,10 +494,10 @@ try{
     margin-bottom:8px;
   }
   .story.hero h2{
-    font-size:32px;
-    line-height:1.22;
+    font-size:clamp(26px, 3.2vw, 34px);
+    line-height:1.28;
   }
-  .story.hero p.desc{ font-size:16.5px; }
+  .story.hero p.desc{ font-size:18px; line-height:1.7; }
   #feed-col > .story:last-of-type{ border-bottom:none; }
 
   .story-index{
@@ -508,9 +518,11 @@ try{
   .story h2{
     font-family:var(--serif);
     font-weight:600;
-    font-size:20px;
-    line-height:1.3;
+    font-size:22px;
+    line-height:1.35;
+    letter-spacing:-0.01em;
     margin-bottom:8px;
+    text-wrap:pretty;
   }
   .story h2 a{color:var(--ink); text-decoration:none;}
   .story h2 a:hover{color:var(--wire-amber);}
@@ -518,13 +530,21 @@ try{
   .story.read{ opacity:.58; }
   .story.read:hover, .story.read.open{ opacity:1; }
   .story p.desc{
-    font-size:14.5px;
-    line-height:1.55;
-    color:var(--ink-dim);
+    font-size:16.5px;
+    line-height:1.7;
+    color:var(--ink);
     font-style:normal;
+    display:-webkit-box;
+    -webkit-line-clamp:3;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+    max-width:42rem;
   }
-  html[data-theme="light"] .story p.desc{ color:#3a372f; }
+  .story.open p.desc{
+    -webkit-line-clamp:unset;
+    overflow:visible;
   }
+  html[data-theme="light"] .story p.desc{ color:#2f2a22; }
 
   /* SIDEBAR — "ENG KO'P O'QILGANLAR". JS orqali currentArticles'ning
      birinchi 4 tasidan sarlavha olib to'ldiraman (renderFeed ichida). */
@@ -612,12 +632,10 @@ try{
   .ai-btn:disabled{opacity:.4; cursor:wait;}
 
   .ai-panel{
-    margin-top:12px;
-    border-left:3px solid var(--wire-amber);
-    padding:14px 16px;
-    background:var(--paper-raised);
+    margin-top:0;
+    padding:0;
+    background:transparent;
     display:none;
-    border-radius:0 var(--radius) var(--radius) 0;
   }
   .ai-panel.show{display:block;}
   .ai-panel .ai-tag{
@@ -632,9 +650,10 @@ try{
   }
   .ai-panel .ai-body{
     font-family:var(--serif);
-    font-size:14.5px;
-    line-height:1.6;
+    font-size:17.5px;
+    line-height:1.75;
     color:var(--ink);
+    max-width:40rem;
   }
 
   /* =========================================================
@@ -654,7 +673,8 @@ try{
   .ai-body > *:last-child, .chat-msg.ai > *:last-child{margin-bottom:0;}
 
   .ai-body p, .chat-msg.ai p{
-    margin:0 0 10px;
+    margin:0 0 14px;
+    line-height:1.75;
   }
   .ai-body h1, .ai-body h2, .ai-body h3, .ai-body h4,
   .chat-msg.ai h1, .chat-msg.ai h2, .chat-msg.ai h3, .chat-msg.ai h4{
@@ -761,7 +781,7 @@ try{
   }
 
   .chat-panel{
-    margin-top:10px;
+    margin-top:12px;
     display:none;
   }
   .chat-panel.show{display:block;}
@@ -796,8 +816,8 @@ try{
   .chat-msg.ai{
     background:transparent;
     color:var(--ink-dim);
-    border-left:2px solid var(--wire-green);
-    padding-left:10px;
+    border-left:none;
+    padding-left:0;
   }
   .chat-input-row{
     display:flex;
@@ -2058,10 +2078,14 @@ import {
     body.textContent = 'AI javob tayyorlayapti...';
 
     const sys = `Sen tajribali xalqaro yangiliklar sharhlovchisisan. Foydalanuvchi senga allaqachon o'zbek tiliga tarjima qilingan sarlavha va tavsifni beradi (lekin asl til har xil bo'lishi mumkin — ingliz, rus va h.k., buni avtomatik aniqlab ol). Javobingni QATIYAN FAQAT O'ZBEK TILIDA yoz, boshqa hech qanday tilda emas. Quyidagi tartibda javob ber:
-1) Avval 3 ta qisqa gaplik xulosa (nima bo'ldi)
-2) Keyin 2-3 gaplik fon: nega muhim
-3) Oxirida 1 gap: bu nima olib kelishi mumkin
-Sodda, tushunarli yoz. Sarlavhani qayta takrorlama.`;
+Quyidagi tartibda, qisqa va aniq yoz:
+**Xulosa**
+3 ta oddiy gap: nima bo'ldi, kim ishtirok etdi.
+**Nega muhim**
+2 gap: dasturchi yoki texnologiya olami uchun nima o'zgaradi.
+**Keyingi qadam**
+1 gap: bu nima olib kelishi mumkin.
+Murakkab so'zlarni tushuntir. Taxminni fakt qilib yozma. Sarlavhani takrorlama.`;
 
     const userMsg = `Sarlavha (o'zbekcha): ${titleUz}\nTavsif (o'zbekcha): ${descUz}\nManba: ${sourceName(a)}`;
 

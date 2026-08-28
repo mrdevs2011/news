@@ -65,16 +65,48 @@ export default async function handler(req, res) {
   const sortby = 'publishedAt';
   const usePage = isMore ? 1 : page;
 
+  // Bratishka, MUHIM: sortby=publishedAt yolg'iz o'zi YETARLI EMAS —
+  // u faqat "natijalarni yangidan eskiga tartibla" degani, lekin GNews
+  // baribir 2-3 KUNLIK "eskirgan" maqolalarni ham ro'yxatga qo'shishi
+  // mumkin edi (agar ular kalit so'zga mos kelsa). Foydalanuvchi aniq
+  // aytdi: eskirgan/allaqachon ma'lum bo'lgan xabarlar ko'rinmasin,
+  // faqat YANGI — bugun/kecha sodir bo'lgan, HOZIR sodir bo'layotgan
+  // yoki yaqin kunlarda bo'lishi KUTILAYOTGAN voqealar haqidagi
+  // maqolalar (masalan: "iPhone 18 Pro Max sentabrda taqdim etilishi
+  // kutilmoqda" — bu HAM "yangi" hisoblanadi, chunki bu maqolaning
+  // O'ZI yangi chop etilgan, garchi voqea kelajakda bo'lsa ham).
+  // Shu sabab GNews'ga qattiq `from=` sana chegarasi qo'shamiz — bu
+  // maqola nashr sanasini cheklaydi, voqea sanasini emas. Natijada:
+  // "kecha/bugun yozilgan, ertaga/yaqin kelajak haqidagi" maqolalar
+  // o'tadi, "3 kun oldin yozilgan eski xabar" esa butunlay kesiladi.
+  const FRESHNESS_WINDOW_HOURS = 72;
+  const fromDate = new Date(Date.now() - FRESHNESS_WINDOW_HOURS * 60 * 60 * 1000);
+  const fromParam = fromDate.toISOString().split('.')[0] + 'Z'; // GNews kutgan format: YYYY-MM-DDThh:mm:ssZ
+
   let url;
   if (mode === 'global') {
-    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&lang=en&max=10&page=${usePage}&sortby=${sortby}&apikey=${encodeURIComponent(GNEWS_KEY)}`;
+    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&lang=en&max=10&page=${usePage}&sortby=${sortby}&from=${fromParam}&apikey=${encodeURIComponent(GNEWS_KEY)}`;
   } else {
-    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&country=uz&lang=ru&max=10&page=${usePage}&sortby=${sortby}&apikey=${encodeURIComponent(GNEWS_KEY)}`;
+    url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(TECH_QUERY)}&country=uz&lang=ru&max=10&page=${usePage}&sortby=${sortby}&from=${fromParam}&apikey=${encodeURIComponent(GNEWS_KEY)}`;
   }
 
   try {
-    const gnewsRes = await fetch(url);
-    const data = await gnewsRes.json();
+    let gnewsRes = await fetch(url);
+    let data = await gnewsRes.json();
+
+    // Bratan, FALLBACK: agar 72 soatlik qat'iy oyna hech narsa
+    // qaytarmasa (niche mavzu, tinch tungi soat va h.k.), bo'sh feed
+    // ko'rsatishdan ko'ra — oynani 7 kunga kengaytirib qayta so'raymiz.
+    // Bu "eskirgan xabar ko'rsatmaslik" qoidasini butunlay buzmaydi,
+    // chunki bu FAQAT hech qanday yangi maqola topilmagan holatda
+    // ishga tushadi (fallback), asosiy oqim doim 72 soatlik.
+    if (gnewsRes.ok && Array.isArray(data.articles) && data.articles.length === 0) {
+      const wideFrom = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('.')[0] + 'Z';
+      const wideUrl = url.replace(`from=${fromParam}`, `from=${wideFrom}`);
+      console.warn('[gnews] 72h oynada natija yo\'q, 7 kunga kengaytirildi:', TECH_QUERY);
+      gnewsRes = await fetch(wideUrl);
+      data = await gnewsRes.json();
+    }
 
     if (!gnewsRes.ok) {
       // Bratan, MUHIM: GNews xato bo'lganda "errors" kalitini har doim
