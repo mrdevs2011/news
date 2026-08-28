@@ -103,6 +103,8 @@ try{
     font-size:17px;
     line-height:1.65;
     min-height:100vh;
+    min-height:100dvh;    /* dvh — mobil manzil satri chiqib/kirib turganda
+                             100vh o'zgarib, layout "sakrab" ketishining oldini oladi */
     -webkit-font-smoothing:antialiased;
     text-rendering:optimizeLegibility;
     transition:background-color .35s ease, color .35s ease;
@@ -717,6 +719,7 @@ try{
     z-index:20;
     align-self:start;
     max-height:calc(100vh - var(--header-h) - var(--control-h) - 24px);
+    max-height:calc(100dvh - var(--header-h) - var(--control-h) - 24px);
     overflow-y:auto;
     overscroll-behavior:contain;
     -webkit-overflow-scrolling:touch;
@@ -1202,6 +1205,7 @@ try{
       position:sticky !important;
       top:calc(var(--header-h) + var(--control-h) + 8px);
       max-height:calc(100vh - var(--header-h) - var(--control-h) - 20px);
+      max-height:calc(100dvh - var(--header-h) - var(--control-h) - 20px);
     }
     .control-bar{ top:var(--header-h); padding:6px 16px; }
     nav.top-nav{ gap:5px; }
@@ -1235,6 +1239,7 @@ try{
     aside#trending{
       top:calc(var(--header-h) + var(--control-h) + 6px);
       max-height:calc(100vh - var(--header-h) - var(--control-h) - 16px);
+      max-height:calc(100dvh - var(--header-h) - var(--control-h) - 16px);
     }
     nav.top-nav{ gap:4px; }
     nav.top-nav .hdr-btn{ width:36px; height:36px; padding:6px; border-radius:10px; }
