@@ -30,7 +30,6 @@
     -webkit-font-smoothing:antialiased;
   }
 
-  /* ===== HEADER / MASTHEAD ===== */
   header{
     border-bottom:3px double var(--line);
     padding:20px 24px 14px;
@@ -58,6 +57,9 @@
   #aiStatus{color:var(--ink-dim);}
   #aiStatus.ok{color:var(--wire-green);}
   #aiStatus.bad{color:var(--wire-red);}
+  #dbStatus{color:var(--ink-dim);}
+  #dbStatus.ok{color:var(--wire-green);}
+  #dbStatus.bad{color:var(--wire-red);}
 
   .masthead-title{
     display:flex;
@@ -95,7 +97,6 @@
     letter-spacing:0.05em;
   }
 
-  /* ===== TABS ===== */
   .tabs{
     display:flex;
     gap:0;
@@ -124,7 +125,6 @@
     font-weight:700;
   }
 
-  /* ===== MAIN FEED ===== */
   main{
     max-width:900px;
     margin:0 auto;
@@ -194,7 +194,6 @@
     letter-spacing:.04em;
   }
 
-  /* ---- AI block ---- */
   .ai-toolbar{
     display:flex;
     gap:8px;
@@ -303,7 +302,6 @@
   }
   .chat-input-row button:disabled{opacity:.5; cursor:wait;}
 
-  /* ===== LOADING / EMPTY ===== */
   .placeholder{
     font-family:var(--mono);
     text-align:center;
@@ -355,6 +353,7 @@
 <header>
   <div class="masthead-top">
     <span>ESTABLISHED TODAY // AUTO-REFRESH: 30 MIN</span>
+    <span id="dbStatus">DB: TEKSHIRILMOQDA...</span>
     <span id="aiStatus">AI: TEKSHIRILMOQDA...</span>
     <span id="clock">--:--:--</span>
   </div>
@@ -378,198 +377,74 @@
   </div>
 </main>
 
-<footer>WIRE TERMINAL — GNews (server proxy) + AI (Groq → OpenRouter → Gemini) — GNews key Vercel env'da, AI key'lar config.local.js ichida</footer>
+<footer>WIRE TERMINAL — GNews (server proxy) + AI (server proxy) + Firestore (arxiv &amp; chat tarixi)</footer>
 
 <!--
-  Bratan: GNews key endi bu yerda YO'Q — u Vercel Environment Variables
-  ichida, /api/gnews.js orqali server tomonda ishlatiladi. Frontend
-  uni hech qachon ko'rmaydi.
-
-  AI key'lar (groq/openrouter/gemini) hali ham config.local.js da —
-  bu HALI HAM xavfli agar public deploy qilsang. Bu haqida alohida
-  gaplashamiz keyingi qadamda.
+  Bratan, o'zgarishlar shu yerda:
+  1) AI key'lar butunlay frontend'dan olib tashlandi. Endi /api/ai-chat orqali
+     chaqiriladi — key'lar Vercel Environment Variables'da turadi, brauzer
+     ularni hech qachon ko'rmaydi.
+  2) Firestore ulandi (firebase-init.js, type="module"). Feed har yuklanganda
+     article'lar bazaga yoziladi (merge), AI tushuntirish natijasi keshlanadi,
+     chat tarixi subcollection'da saqlanadi va sahifa yangilansa ham yo'qolmaydi.
+  3) firestore.rules faylini alohida bераман — uni Firebase Console yoki CLI
+     orqali deploy qilishing kerak, bu faylning ichida emas.
 -->
-<script src="config.local.js"></script>
+<script type="module">
+import {
+  hashUrl,
+  upsertArticle,
+  getArticleDoc,
+  saveExplainResult,
+  loadChatHistory,
+  appendChatMessage
+} from './firebase-init.js';
 
-<script>
 (function(){
   // =========================================================
-  // 0) CONFIG / KEY POOLS
+  // 0) STATUS HELPERS
   // =========================================================
-  const CFG = window.WIRE_KEYS || {};
-  const KEY_POOLS = {
-    groq: Array.isArray(CFG.groq) ? CFG.groq.filter(Boolean) : [],
-    openrouter: Array.isArray(CFG.openrouter) ? CFG.openrouter.filter(Boolean) : [],
-    gemini: Array.isArray(CFG.gemini) ? CFG.gemini.filter(Boolean) : []
-  };
-  // fallback tartibi — shu ketma-ketlikda sinaladi
-  const PROVIDER_ORDER = ['groq', 'openrouter', 'gemini'];
-
-  // har provider uchun round-robin pointer
-  const keyCursor = { groq: 0, openrouter: 0, gemini: 0 };
-  // ishlamay qolgan (dead) key'larni shu turda belgilaymiz — session davomida qayta sinamaymiz
-  const deadKeys = { groq: new Set(), openrouter: new Set(), gemini: new Set() };
-
-  function nextKey(provider){
-    const pool = KEY_POOLS[provider];
-    if(!pool.length) return null;
-    const dead = deadKeys[provider];
-    if(dead.size >= pool.length) return null; // hammasi o'lgan
-    for(let i=0; i<pool.length; i++){
-      const idx = keyCursor[provider] % pool.length;
-      keyCursor[provider]++;
-      if(!dead.has(idx)) return { key: pool[idx], idx };
-    }
-    return null;
-  }
-
-  function markDead(provider, idx){
-    deadKeys[provider].add(idx);
-  }
-
-  function poolsExhausted(){
-    return PROVIDER_ORDER.every(p => {
-      const pool = KEY_POOLS[p];
-      return pool.length === 0 || deadKeys[p].size >= pool.length;
-    });
-  }
-
-  // =========================================================
-  // 1) AI CALL LAYER — provider-agnostic chat completion
-  //    Fallback zanjiri: groq -> openrouter -> gemini
-  //    Har provider ichida key'lar round-robin bilan sinaladi
-  // =========================================================
-  async function callGroq(key, messages){
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages,
-        temperature: 0.4
-      })
-    });
-    if(!res.ok){
-      const body = await res.json().catch(()=>({}));
-      const err = new Error(body.error?.message || `HTTP ${res.status}`);
-      err.status = res.status;
-      throw err;
-    }
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content?.trim() || '';
-  }
-
-  async function callOpenRouter(key, messages){
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${key}`
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-70b-instruct:free',
-        messages,
-        temperature: 0.4
-      })
-    });
-    if(!res.ok){
-      const body = await res.json().catch(()=>({}));
-      const err = new Error(body.error?.message || `HTTP ${res.status}`);
-      err.status = res.status;
-      throw err;
-    }
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content?.trim() || '';
-  }
-
-  async function callGemini(key, messages){
-    // Gemini API tuzilishi boshqacha — system+user'ni birlashtiramiz
-    const sysMsg = messages.find(m => m.role === 'system');
-    const convo = messages.filter(m => m.role !== 'system');
-    const contents = convo.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
-    const body = {
-      contents,
-      ...(sysMsg ? { systemInstruction: { parts: [{ text: sysMsg.content }] } } : {})
-    };
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if(!res.ok){
-      const errBody = await res.json().catch(()=>({}));
-      const err = new Error(errBody.error?.message || `HTTP ${res.status}`);
-      err.status = res.status;
-      throw err;
-    }
-    const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-  }
-
-  const CALLERS = { groq: callGroq, openrouter: callOpenRouter, gemini: callGemini };
-
-  // status bar'ga hozir qaysi provider ishlatilayotganini chiqaramiz
   function setAiStatus(text, cls){
     const el = document.getElementById('aiStatus');
     el.textContent = 'AI: ' + text;
     el.className = cls || '';
   }
-
-  // asosiy funksiya: fallback zanjiri bo'ylab AI'dan javob so'raydi
-  async function aiChat(messages){
-    if(poolsExhausted()){
-      throw new Error('Barcha AI key\'lar (Groq/OpenRouter/Gemini) tugadi yoki ishlamayapti.');
-    }
-    let lastErr = null;
-    for(const provider of PROVIDER_ORDER){
-      const pool = KEY_POOLS[provider];
-      if(!pool.length) continue;
-      // shu provider ichidagi key'larni birma-bir sinaymiz
-      let attempts = 0;
-      const maxAttempts = pool.length;
-      while(attempts < maxAttempts){
-        const picked = nextKey(provider);
-        if(!picked) break; // bu provider'ning hammasi dead
-        attempts++;
-        try{
-          setAiStatus(provider.toUpperCase() + ' bilan ishlamoqda...', '');
-          const result = await CALLERS[provider](picked.key, messages);
-          setAiStatus(provider.toUpperCase() + ' — ISHLAYAPTI', 'ok');
-          return result;
-        }catch(err){
-          console.warn(`[${provider}] key#${picked.idx} xato:`, err.message);
-          // 401/403 = key yaroqsiz, 429 = limit tugagan — ikkalasida ham dead deb belgilaymiz
-          if(err.status === 401 || err.status === 403 || err.status === 429){
-            markDead(provider, picked.idx);
-          }
-          lastErr = err;
-          continue; // shu provider ichida keyingi key'ga o'tamiz
-        }
-      }
-      // shu provider'ning key pool'i butunlay tugadi -> keyingi provider'ga o'tamiz
-    }
-    setAiStatus('HAMMASI TUGADI', 'bad');
-    throw lastErr || new Error('AI javob bermadi — barcha provider/key sinaldi.');
+  function setDbStatus(text, cls){
+    const el = document.getElementById('dbStatus');
+    el.textContent = 'DB: ' + text;
+    el.className = cls || '';
   }
-
-  // ilk holatda AI mavjudligini ko'rsatib qo'yamiz
-  (function initAiStatus(){
-    const total = KEY_POOLS.groq.length + KEY_POOLS.openrouter.length + KEY_POOLS.gemini.length;
-    if(total === 0){
-      setAiStatus('KEY YO\'Q (config.local.js)', 'bad');
-    } else {
-      setAiStatus(`TAYYOR (${KEY_POOLS.groq.length}G/${KEY_POOLS.openrouter.length}OR/${KEY_POOLS.gemini.length}GM)`, '');
-    }
-  })();
+  setAiStatus('SERVER PROXY ORQALI', '');
+  setDbStatus('FIRESTORE ULANDI', 'ok');
 
   // =========================================================
-  // 2) GNEWS FEED
+  // 1) AI CALL LAYER — endi server-side proxy orqali.
+  //    Fallback zanjiri (groq -> openrouter -> gemini) va key round-robin
+  //    logikasi /api/ai-chat.js ichiga ko'chdi. Frontend faqat shu endpoint'ga
+  //    messages jo'natadi, qaysi provider ishlaganini bilishi shart emas.
+  // =========================================================
+  async function aiChat(messages){
+    setAiStatus('SO\'ROV YUBORILMOQDA...', '');
+    try{
+      const res = await fetch('/api/ai-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages })
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok){
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setAiStatus((data.provider || 'AI').toUpperCase() + ' — ISHLADI', 'ok');
+      return data.result || '';
+    }catch(err){
+      setAiStatus('XATOLIK', 'bad');
+      throw err;
+    }
+  }
+
+  // =========================================================
+  // 2) GNEWS FEED + FIRESTORE ARXIV
   // =========================================================
   const feedEl = document.getElementById('feed');
   const feedLabel = document.getElementById('feedLabel');
@@ -579,7 +454,7 @@
 
   let currentMode = 'global';
   let refreshTimer = null;
-  let currentArticles = []; // hozirgi feed'dagi maqolalar, AI context uchun
+  let currentArticles = []; // hozirgi feed'dagi maqolalar, {..., id} bilan (id = hashUrl natijasi)
 
   function tickClock(){
     const now = new Date();
@@ -610,7 +485,24 @@
       if(!res.ok){
         throw new Error(data.error || `HTTP ${res.status}`);
       }
-      currentArticles = data.articles || [];
+      const rawArticles = data.articles || [];
+
+      // Har article uchun barqaror ID chiqaramiz (url hash) va Firestore'ga yozamiz.
+      // Bu qadam sekin bo'lishi mumkin (SHA-256 + Firestore write har birida) —
+      // shuning uchun Promise.all bilan parallel qilamiz.
+      currentArticles = await Promise.all(rawArticles.map(async (a) => {
+        const id = await hashUrl(a.url || a.title || Math.random().toString());
+        // fire-and-forget emas — kutamiz, chunki keyingi qadamda shu id kerak bo'ladi.
+        // Xato bo'lsa ham feed ko'rsatishni to'xtatmaymiz (bazaga yozib bo'lmasa ham,
+        // foydalanuvchi yangilikni o'qishi kerak).
+        try{
+          await upsertArticle(id, a, currentMode);
+        }catch(e){
+          console.warn('Firestore upsert xato:', e.message);
+        }
+        return { ...a, id };
+      }));
+
       renderFeed(currentArticles);
       statusLine.textContent = 'LIVE — OXIRGI YANGILANISH: ' + new Date().toLocaleTimeString('uz-UZ',{hour12:false});
     } catch(err){
@@ -636,7 +528,7 @@
       const date = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
       const desc = a.description ? escapeHtml(a.description) : '';
       return `
-        <article class="story" data-idx="${i}">
+        <article class="story" data-idx="${i}" data-id="${a.id}">
           <div class="story-index">${num}<span class="src">${escapeHtml(src)}</span></div>
           <div>
             <h2><a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
@@ -664,7 +556,6 @@
         </article>`;
     }).join('');
 
-    // event delegation o'rniga to'g'ridan-to'g'ri bog'laymiz — oddiy va tushunarli
     feedEl.querySelectorAll('[data-action="explain"]').forEach(btn => {
       btn.addEventListener('click', () => handleExplain(Number(btn.dataset.idx), btn));
     });
@@ -682,6 +573,31 @@
         }
       });
     });
+
+    // Sahifa qayta render bo'lganda — avval shu article uchun keshlangan
+    // AI tushuntirish yoki chat tarixi bor-yo'qligini Firestore'dan tekshiramiz.
+    articles.forEach((a, i) => restoreCachedState(a.id, i));
+  }
+
+  // Bazadagi eski explainResult va chat tarixini panelga qayta chiqaramiz,
+  // shunda foydalanuvchi bir marta AI so'ragan narsani ikkinchi marta pul
+  // to'lab (token sarflab) so'ramaydi.
+  async function restoreCachedState(articleId, idx){
+    try{
+      const doc = await getArticleDoc(articleId);
+      if(doc && doc.explainResult){
+        const panel = document.getElementById(`ai-panel-${idx}`);
+        const body = document.getElementById(`ai-body-${idx}`);
+        const btn = document.querySelector(`[data-action="explain"][data-idx="${idx}"]`);
+        if(panel && body){
+          body.textContent = doc.explainResult;
+          panel.classList.add('show');
+          if(btn) btn.textContent = '🇺🇿 Qayta tarjima qilish';
+        }
+      }
+    }catch(e){
+      console.warn('Firestore restore xato:', e.message);
+    }
   }
 
   function escapeHtml(str){
@@ -691,7 +607,7 @@
   }
 
   // =========================================================
-  // 3) "TARJIMA + TUSHUNTIRISH" — bitta AI chaqiruv, natija panelga chiqadi
+  // 3) "TARJIMA + TUSHUNTIRISH" — natija Firestore'ga keshlanadi
   // =========================================================
   async function handleExplain(idx, btn){
     const a = currentArticles[idx];
@@ -719,6 +635,12 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
       ]);
       body.textContent = result || 'AI bo\'sh javob qaytardi.';
       btn.textContent = '🇺🇿 Qayta tarjima qilish';
+
+      // Natijani Firestore'ga yozamiz — keyingi safar shu articlega qaytilsa
+      // AI'ni qayta chaqirmasdan shu yerdan o'qiymiz.
+      try{ await saveExplainResult(a.id, result || ''); }
+      catch(e){ console.warn('explainResult saqlanmadi:', e.message); }
+
     }catch(err){
       body.textContent = 'XATOLIK: ' + err.message;
       btn.textContent = '🇺🇿 Tarjima + Tushuntirish';
@@ -728,18 +650,38 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
   }
 
   // =========================================================
-  // 4) "MUHOKAMA QILISH" — story bo'yicha erkin chat, tarix saqlanadi
+  // 4) "MUHOKAMA QILISH" — chat tarixi endi Firestore subcollection'da.
+  //    RAM'dagi chatHistories — shu sessiya davomidagi ishchi nusxa,
+  //    lekin har xabar Firestore'ga ham yoziladi, sahifa yangilansa yo'qolmaydi.
   // =========================================================
-  const chatHistories = {}; // idx -> [{role, content}]
+  const chatHistories = {}; // idx -> [{role, content}]  (system prompt shu yerda saqlanadi, DB'ga yozilmaydi)
+  const chatLoaded = {};    // idx -> bool, DB'dan tarix bir marta yuklandimi
 
-  function toggleDiscuss(idx){
+  async function toggleDiscuss(idx){
     const panel = document.getElementById(`chat-panel-${idx}`);
+    const wasHidden = !panel.classList.contains('show');
     panel.classList.toggle('show');
-    if(panel.classList.contains('show') && !chatHistories[idx]){
-      const a = currentArticles[idx];
+    if(!wasHidden) return; // yopilyapti — qayta yuklash shart emas
+
+    const a = currentArticles[idx];
+    if(!chatHistories[idx]){
       chatHistories[idx] = [
         { role: 'system', content: `Sen yangiliklar bo'yicha muhokama qiladigan bilimdon suhbatdoshsan. Mavzu: "${a.title || ''}". Tavsif: "${a.description || ''}". Foydalanuvchi bilan o'zbek tilida, tabiiy va batafsil suhbatlash. Savollariga chuqur, faktlarga asoslangan javob ber.` }
       ];
+    }
+
+    if(!chatLoaded[idx]){
+      chatLoaded[idx] = true;
+      const log = document.getElementById(`chat-log-${idx}`);
+      try{
+        const history = await loadChatHistory(a.id); // [{role, content, createdAt}]
+        history.forEach(msg => {
+          chatHistories[idx].push({ role: msg.role, content: msg.content });
+          appendChatMsg(log, msg.role === 'user' ? 'user' : 'ai', msg.content);
+        });
+      }catch(e){
+        console.warn('Chat tarixi yuklanmadi:', e.message);
+      }
     }
   }
 
@@ -750,7 +692,8 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
     const text = input.value.trim();
     if(!text) return;
 
-    if(!chatHistories[idx]) toggleDiscuss(idx);
+    const a = currentArticles[idx];
+    if(!chatHistories[idx]) await toggleDiscuss(idx);
 
     appendChatMsg(log, 'user', text);
     chatHistories[idx].push({ role: 'user', content: text });
@@ -758,12 +701,16 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
     input.disabled = true;
     btn.disabled = true;
 
+    // Firestore'ga yozamiz — kutmasdan (UI bloklanmasin), lekin xatoni log qilamiz.
+    appendChatMessage(a.id, 'user', text).catch(e => console.warn('chat write xato:', e.message));
+
     const thinkingEl = appendChatMsg(log, 'ai', 'AI yozmoqda...');
 
     try{
       const result = await aiChat(chatHistories[idx]);
       thinkingEl.textContent = result;
       chatHistories[idx].push({ role: 'assistant', content: result });
+      appendChatMessage(a.id, 'assistant', result).catch(e => console.warn('chat write xato:', e.message));
     }catch(err){
       thinkingEl.textContent = 'XATOLIK: ' + err.message;
     }finally{

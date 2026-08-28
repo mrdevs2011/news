@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Yangiliklar — hamma o'qiy oladi (public feed). Yozish faqat to'g'ri
+    // formatda bo'lsa ruxsat etiladi. O'chirish taqiqlangan — arxiv sifatida saqlanadi.
+    match /articles/{articleId} {
+      allow read: if true;
+      allow create: if isValidArticle(request.resource.data);
+      allow update: if isValidArticleUpdate(request.resource.data, resource.data);
+      allow delete: if false;
+
+      // Har article ostidagi chat xabarlari
+      match /chats/{messageId} {
+        allow read: if true;
+        allow create: if isValidChatMessage(request.resource.data);
+        allow update, delete: if false; // chat tarixi o'zgarmas
+      }
+    }
+  }
+
+  function isValidArticle(data) {
+    return data.keys().hasAll(['title', 'url', 'mode', 'fetchedAt'])
+      && data.title is string && data.title.size() < 500
+      && data.url is string && data.url.size() < 1000
+      && data.mode in ['global', 'local']
+      && (!('explainResult' in data) || (data.explainResult is string && data.explainResult.size() < 5000));
+  }
+
+  function isValidArticleUpdate(newData, oldData) {
+    // Mavjud article ustiga yozilganda url o'zgarmasligi kerak (bir xil doc = bir xil yangilik)
+    return isValidArticle(newData)
+      && (!('url' in oldData) || newData.url == oldData.url);
+  }
+
+  function isValidChatMessage(data) {
+    return data.keys().hasAll(['role', 'content', 'createdAt'])
+      && data.role in ['user', 'assistant']
+      && data.content is string && data.content.size() < 3000
+      && data.createdAt == request.time; // server timestamp bo'lishi shart, spoof qilib bo'lmaydi
+  }
+}
