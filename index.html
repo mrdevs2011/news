@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WIRE // Live Yangiliklar Terminali</title>
+<title>FMN — ForMrNews</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicon.svg">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
@@ -791,7 +793,7 @@
 <header>
   <div class="masthead-row">
     <div class="brand">
-      <h1><span class="blink"></span>WIRE</h1>
+      <h1><span class="blink"></span>FMN</h1>
     </div>
     <nav class="top-nav">
       <button type="button" id="translateAllBtn" class="hdr-btn translate-btn" title="Barchasini o'zbekchaga tarjima qilish">
@@ -858,7 +860,7 @@
   </aside>
 </main>
 
-<footer>WIRE TERMINAL — GNews (server proxy) + AI (server proxy) + Firestore (arxiv &amp; chat tarixi)</footer>
+<footer>FMN — ForMrNews — GNews (server proxy) + AI (server proxy) + Firestore (arxiv &amp; chat tarixi)</footer>
 
 <!--
   Bratan, o'zgarishlar shu yerda:
@@ -1050,7 +1052,7 @@ import {
         }catch(e){
           console.warn('Firestore upsert xato:', e.message);
         }
-        return { ...a, id };
+        return cleanArticleText({ ...a, id });
       }));
 
       renderFeed(currentArticles);
@@ -1237,7 +1239,7 @@ import {
     feedLabel.textContent = formatDateUz(dateKey).toUpperCase();
     try{
       const docs = await getArticlesByDate(dateKey);
-      currentArticles = docs;
+      currentArticles = (docs || []).map(cleanArticleText);
       renderFeed(currentArticles, { history: true, date: dateKey });
       statusLine.textContent = 'TARIX — ' + dateKey;
     }catch(err){
@@ -1278,6 +1280,24 @@ import {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  // GNews/tarjima ba'zan "o&#39;zining" kabi entity qoldiradi —
+  // ekronga va AI'ga xom entity ketmasin.
+  function decodeHtml(str){
+    if(!str) return '';
+    const ta = document.createElement('textarea');
+    ta.innerHTML = String(str);
+    return ta.value;
+  }
+
+  function cleanArticleText(a){
+    if(!a) return a;
+    if(a.title) a.title = decodeHtml(a.title);
+    if(a.description) a.description = decodeHtml(a.description);
+    if(a.translatedTitle) a.translatedTitle = decodeHtml(a.translatedTitle);
+    if(a.translatedDesc) a.translatedDesc = decodeHtml(a.translatedDesc);
+    return a;
   }
 
   // =========================================================
@@ -1404,14 +1424,24 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
 
     const a = currentArticles[idx];
     if(!chatHistories[idx]){
+      const topicTitle = decodeHtml(a.title || '');
+      const topicDesc = decodeHtml(a.description || '');
       chatHistories[idx] = [
-        { role: 'system', content: `Sen FAQAT shu bitta yangilik haqida gaplashadigan mutaxassissan. Mavzu: "${a.title || ''}". Tavsif: "${a.description || ''}".
+        { role: 'system', content: `Sen FAQAT shu bitta yangilik haqida gaplashadigan suhbatdoshisan.
 
-QATIY QOIDALAR:
-1) Foydalanuvchi nima yozmasin — "salom", "nima gap", yoki umuman mavzuga aloqasiz narsa — sen HAR DOIM javobingni shu yangilik bilan bog'lab ber. Oddiy "Salom! Qanday yordam bera olaman?" kabi umumiy javob berish QATIYAN TAQIQLANADI.
-2) Masalan, "salom" desa: qisqa salomlash + darhol shu yangilik haqida bir jumlada eslatma yoki savol bilan davom et (masalan: "Salom! ${a.title || 'shu yangilik'} haqida nimani muhokama qilmoqchisiz?").
-3) Agar foydalanuvchi ochiqchasiz boshqa, aloqasiz mavzuga o'tishga urinsa, muloyimlik bilan uni shu yangilikka qaytar — boshqa mavzuda erkin suhbatlashma.
-4) Javoblaring o'zbek tilida, tabiiy, lekin har doim shu maqola konteksti bilan bog'liq bo'lsin. Savollariga chuqur, faktlarga asoslangan javob ber.` }
+ICHKI KONTEKST (bu matnni foydalanuvchiga hech qachon to'liq o'qib berma, shunchaki biling):
+Sarlavha: ${topicTitle}
+Tavsif: ${topicDesc}
+
+QATIY USLUB:
+1) To'liq sarlavhani yoki tavsifni so'zma-so'z takrorlama. Uzun yangilik nomini gapning o'rtasiga tiqma.
+2) Salom / "nima bu" / "nima gap" kabi qisqa xabarda: 2-4 ta asosiy ot (kim va nima) bilan QISQA, tabiiy savol ber.
+   YAXSHI: "Salom! Cursor Origin haqida bilmoqchimisiz?"
+   YAXSHI: "Salom! GitHub ishlamagan paytdagi Origin chiqishi qiziqtirdimi?"
+   YOMON: "Salom! GitHub ishlamay qolganda, Cursor o'zining hamkasbi Originni ishga tushirdi, bu haqda nimani muhokama qilmoqchisiz?"
+3) "Qanday yordam bera olaman?" kabi umumiy yordamchi ohangida yozma. Mavzuni 1 qisqa savol bilan och.
+4) Boshqa mavzuga o'tishsa, muloyimlik bilan shu yangilikka qaytar — lekin yana to'liq sarlavhani aytma.
+5) Javoblaring o'zbekcha, qisqa-tabiiy, keyin savolga qarab chuqurlash. Faktlarga tayan.` }
       ];
     }
 
@@ -1527,6 +1557,8 @@ QATIY QOIDALAR:
   // DOM'ga tarjima matnini qo'yadi + "translated" belgisini yoqadi.
   // Ham keshdan (Firestore) kelgan, ham yangi AI natijasi shu orqali chiqadi.
   function applyTranslation(i, title, desc){
+    title = decodeHtml(title || '');
+    desc = decodeHtml(desc || '');
     const titleLink = document.getElementById(`title-link-${i}`);
     const descEl = document.getElementById(`desc-${i}`);
     if(titleLink && title){
