@@ -245,12 +245,22 @@ try{
   html[data-theme="light"] .icon-moon{display:none;}
   .ai-btn svg{width:14px;height:14px;display:block;flex-shrink:0;}
 
-  /* TARIX va SAVED: sidebar ko'rinmas, lekin joyi saqlanadi —
-     feed kengayib "cho'zilmasin" (layout sakramasini) */
+  /* TARIX va SAVED: sidebar umuman yo'q (bu yerda "oxirgi ko'rilganlar"
+     ma'nosiz), shu sabab uni grid'dan butunlay olib tashlaymiz va
+     feed ustunini markazga chiqaramiz — chapga qiyshaymasin */
   body.mode-history aside#trending,
   body.mode-saved aside#trending{
-    visibility:hidden;
-    pointer-events:none;
+    display:none;
+  }
+  body.mode-history main,
+  body.mode-saved main{
+    grid-template-columns:1fr;
+  }
+  body.mode-history #feed-col,
+  body.mode-saved #feed-col{
+    max-width:720px;
+    margin:0 auto;
+    width:100%;
   }
 
   .masthead-top{
