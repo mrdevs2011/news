@@ -39,7 +39,16 @@ export default async function handler(req, res) {
   // DASTURLASH / SUN'IY INTELLEKT / TEXNOLOGIYA OLAMI kerak. Shuning uchun
   // endi top-headlines emas, "search" endpoint ishlatilyapti — GNews'ga aniq
   // qidiruv so'zlari beramiz, faqat shu mavzudagi yangiliklar qaytadi.
-  const TECH_QUERY = '(AI OR "artificial intelligence" OR OpenAI OR Anthropic OR "Claude AI" OR ChatGPT OR Gemini OR "large language model" OR startup OR "tech company" OR Google OR Microsoft OR Apple OR Meta OR Nvidia OR Amazon OR Tesla OR SpaceX OR programming OR coding OR developer OR software OR "open source" OR GitHub OR cybersecurity OR hacking OR chip OR semiconductor OR robotics OR "video game" OR gaming OR GTA OR PlayStation OR Xbox OR Steam OR crypto OR blockchain)';
+  // Bratan, MUHIM: GNews q parametri 200 belgi bilan cheklangan (Free/Basic tarif).
+  // Avvalgi 30+ so'zli query 500+ belgi edi -> doim "too long" xatosi berardi.
+  // Endi 2 ta QISQA query bor: har biri navbat bilan (soat asosida) ishlatiladi,
+  // shunda mavzular kengroq qamrab olinadi, lekin har biri 200 belgidan kichik.
+  const TECH_QUERIES = [
+    '(AI OR OpenAI OR Anthropic OR ChatGPT OR Gemini OR "large language model")',
+    '(programming OR coding OR GitHub OR "open source" OR cybersecurity OR startup)',
+  ];
+  // Soatga qarab query almashtiramiz -> ikkala mavzu ham vaqti bilan ko'rinadi
+  const TECH_QUERY = TECH_QUERIES[new Date().getHours() % TECH_QUERIES.length];
 
   let url;
   if (mode === 'global') {
