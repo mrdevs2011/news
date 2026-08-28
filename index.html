@@ -54,23 +54,19 @@
 
   header{
     border-bottom:1px solid var(--line);
-    padding:18px 32px;
+    padding:12px 32px;
     position:sticky;
     top:0;
     background:var(--paper);
     z-index:50;
   }
 
-  /* Bratishka, eski masthead-top (soat, DB/AI status) endi header ichida
-     emas — screenshot'dagi kabi bitta qator: logo chapda, nav o'ngda.
-     Status/soat/tab qatorini pastga, alohida "control-bar"ga tashladim,
-     shunda asosiy masthead toza va gazeta-uslub bo'lib qoladi. */
   .masthead-row{
     display:flex;
     align-items:center;
     justify-content:space-between;
     flex-wrap:wrap;
-    gap:14px;
+    gap:12px;
   }
 
   .brand{
@@ -87,24 +83,54 @@
 
   nav.top-nav{
     display:flex;
-    gap:26px;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  nav.top-nav .hdr-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    background:#141414;
+    border:1px solid #2a2a2a;
+    color:#f2f2f2;
     font-family:var(--mono);
-    font-size:12.5px;
-    letter-spacing:.06em;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.04em;
     text-transform:uppercase;
-    color:var(--ink-dim);
-  }
-  nav.top-nav a{
-    color:inherit;
-    text-decoration:none;
+    padding:10px 16px;
     cursor:pointer;
+    border-radius:8px;
+    text-decoration:none;
     transition:.15s;
-    padding-bottom:2px;
-    border-bottom:2px solid transparent;
+    white-space:nowrap;
   }
-  nav.top-nav a:hover, nav.top-nav a.active{
-    color:var(--ink);
-    border-bottom-color:var(--wire-red);
+  nav.top-nav .hdr-btn:hover{
+    background:#1c1c1c;
+    border-color:#3a3a3a;
+  }
+  nav.top-nav .hdr-btn.active{
+    background:var(--wire-red);
+    border-color:var(--wire-red);
+    color:#fff;
+  }
+  nav.top-nav .hdr-btn.loading{
+    opacity:.6;
+    cursor:wait;
+  }
+  nav.top-nav .hdr-ico{
+    width:16px;
+    height:16px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  nav.top-nav .hdr-ico svg{
+    width:16px;
+    height:16px;
+    display:block;
   }
 
   .masthead-top{
@@ -165,34 +191,10 @@
     letter-spacing:0.05em;
   }
 
-  .translate-btn{
-    display:flex;
-    align-items:center;
-    gap:6px;
-    background:transparent;
-    border:1px solid var(--line);
-    color:var(--ink-dim);
-    font-family:var(--mono);
-    font-size:11px;
-    font-weight:700;
-    letter-spacing:.05em;
-    padding:7px 12px;
-    cursor:pointer;
-    transition:.15s;
-    border-radius:2px;
-  }
-  .translate-btn:hover{border-color:var(--wire-amber); color:var(--wire-amber);}
   .translate-btn.active{
     background:var(--wire-green);
     border-color:var(--wire-green);
     color:#0d0d0c;
-  }
-  .translate-btn.loading{
-    opacity:.6;
-    cursor:wait;
-  }
-  .translate-btn svg{
-    animation:none;
   }
   .translate-btn.loading svg{
     animation:spin 1s linear infinite;
@@ -244,29 +246,9 @@
     flex-wrap:wrap;
   }
 
-  .tabs{
-    display:flex;
-    gap:0;
-    border:1px solid var(--line);
-  }
-  .tab-btn{
-    flex:1;
-    background:transparent;
-    border:none;
-    color:var(--ink-dim);
-    font-family:var(--mono);
-    font-size:12px;
-    letter-spacing:0.1em;
-    text-transform:uppercase;
-    padding:10px 8px;
-    cursor:pointer;
-    border-right:1px solid var(--line);
-    transition:.15s;
-  }
-  .tab-btn:last-child{border-right:none;}
-  .tab-btn:hover{color:var(--ink); background:var(--paper-raised);}
   .tab-btn.active{
     background:var(--wire-red);
+    border-color:var(--wire-red);
     color:#fff;
     font-weight:700;
   }
@@ -759,7 +741,8 @@
   @media (max-width:900px){
     main{ grid-template-columns:1fr; }
     aside#trending{ position:static; }
-    nav.top-nav{ display:none; } /* tor ekranda tab'lar bilan yetarli, joy tejaymiz */
+    nav.top-nav{ gap:6px; }
+    nav.top-nav .hdr-btn{ padding:8px 10px; font-size:11px; }
   }
 
   @media (max-width:600px){
@@ -811,11 +794,40 @@
       <h1><span class="blink"></span>WIRE</h1>
     </div>
     <nav class="top-nav">
-      <a class="tab-btn active" data-mode="global">ASOSIY</a>
-      <a class="tab-btn" data-mode="local">O'ZBEKISTON</a>
-      <a href="#">IQTISODIYOT</a>
-      <a href="#">SPORT</a>
-      <a href="#">TEXNOLOGIYA</a>
+      <button type="button" id="translateAllBtn" class="hdr-btn translate-btn" title="Barchasini o'zbekchaga tarjima qilish">
+        <span class="hdr-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </span>
+        <span id="translateAllLabel">UZ TARJIMA</span>
+      </button>
+      <button type="button" class="hdr-btn tab-btn active" data-mode="global">
+        <span class="hdr-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </span>
+        GLOBAL
+      </button>
+      <button type="button" class="hdr-btn tab-btn" data-mode="local">
+        <span class="hdr-ico" aria-hidden="true">🇺🇿</span>
+        O'ZBEKISTON
+      </button>
+      <button type="button" class="hdr-btn tab-btn" data-mode="history">
+        <span class="hdr-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </span>
+        TARIX
+      </button>
     </nav>
   </div>
 </header>
@@ -826,21 +838,6 @@
     <span id="aiStatus">AI: TEKSHIRILMOQDA...</span>
     <span id="clock">--:--:--</span>
     <span class="status-line" id="statusLine">TERMINAL IDLE</span>
-  </div>
-  <div class="control-right">
-    <button id="translateAllBtn" class="translate-btn" title="Barchasini o'zbekchaga tarjima qilish">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="2" y1="12" x2="22" y2="12"/>
-        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-      </svg>
-      <span id="translateAllLabel">UZ TARJIMA</span>
-    </button>
-    <div class="tabs">
-      <button class="tab-btn active" data-mode="global">🌍 Global</button>
-      <button class="tab-btn" data-mode="local">🇺🇿 O'zbekiston</button>
-      <button class="tab-btn" data-mode="history">🕘 Tarix</button>
-    </div>
   </div>
 </div>
 
