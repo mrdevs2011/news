@@ -424,21 +424,33 @@ try{
   .later-btn svg{ width:16px; height:16px; }
   .later-btn.on{ border-color:var(--wire-amber); color:var(--wire-amber); }
   .card-more:hover{ color:var(--wire-amber); }
-  .card-more svg{ width:16px; height:16px; transition:transform .28s ease; }
+  .card-more svg{ width:16px; height:16px; transition:transform .35s ease; }
   .story.open .card-more svg{ transform:rotate(180deg); }
   .story-more{
     grid-area:more;
-    display:none;
-    margin-top:2px;
+    margin-top:0;
     width:100%;
+    max-height:0;
+    opacity:0;
+    overflow:hidden;
+    transition:max-height .55s cubic-bezier(.4,0,.2,1), opacity .4s ease, margin-top .4s ease;
   }
-  .story.open .story-more{ display:block; }
+  .story.open .story-more{
+    max-height:2200px;
+    opacity:1;
+    margin-top:2px;
+  }
   .story-more-box{
     border:1px solid var(--line);
     border-radius:18px;
     padding:18px 20px 14px;
     background:var(--paper);
     max-width:44rem;
+    transform:translateY(-8px);
+    transition:transform .45s cubic-bezier(.4,0,.2,1);
+  }
+  .story.open .story-more-box{
+    transform:translateY(0);
   }
   .ask-row{
     display:flex;
@@ -664,6 +676,19 @@ try{
     line-height:1.75;
     color:var(--ink);
     max-width:40rem;
+  }
+  .ai-body.fade-in{
+    animation:contentFadeIn .55s ease both;
+  }
+  @keyframes contentFadeIn{
+    from{ opacity:0; transform:translateY(6px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .ai-loading{
+    color:var(--ink-dim);
+    font-style:italic;
+    opacity:.75;
+    animation:pulse 1.6s infinite;
   }
 
   /* =========================================================
@@ -1087,6 +1112,14 @@ try{
         </span>
         <span id="themeLabel">DARK</span>
       </button>
+      <button type="button" class="hdr-btn tab-btn" data-mode="saved">
+        <span class="hdr-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+          </svg>
+        </span>
+        SAQLANGANLAR
+      </button>
       <button type="button" class="hdr-btn tab-btn" data-mode="history">
         <span class="hdr-ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1243,10 +1276,25 @@ import {
     try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
   }
   function writeList(key, arr){
-    try{ localStorage.setItem(key, JSON.stringify(arr.slice(0, 40))); }catch(e){}
+    const max = key === PREF_LATER ? 80 : 40;
+    try{ localStorage.setItem(key, JSON.stringify(arr.slice(0, max))); }catch(e){}
   }
   function isRead(id){ return readList(PREF_READ).includes(id); }
-  function isLater(id){ return readList(PREF_LATER).includes(id); }
+  // Saqlanganlar: eski format (faqat id string) va yangi format ({id, title, ...})
+  function normalizeSavedList(raw){
+    const arr = Array.isArray(raw) ? raw : [];
+    return arr.map(x => {
+      if(typeof x === 'string') return { id: x };
+      if(x && x.id) return x;
+      return null;
+    }).filter(Boolean);
+  }
+  function getSavedList(){
+    return normalizeSavedList(readList(PREF_LATER));
+  }
+  function isLater(id){
+    return getSavedList().some(x => x.id === id);
+  }
   function markRead(id){
     if(!id) return;
     const ids = readList(PREF_READ);
@@ -1255,16 +1303,50 @@ import {
   function markOpened(a){
     if(!a || !a.id) return;
     const items = readList(PREF_OPENED).filter(x => x && x.id !== a.id);
-    items.unshift({ id: a.id, title: a.title || 'Sarlavhasiz' });
+    const uz = articleUz(a);
+    const titleUz = (uz && uz.title) ? uz.title : '';
+    items.unshift({
+      id: a.id,
+      title: a.title || 'Sarlavhasiz',
+      titleUz: titleUz || undefined
+    });
     writeList(PREF_OPENED, items);
     markRead(a.id);
   }
-  function toggleLater(id){
+  function snapshotArticle(a){
+    if(!a || !a.id) return null;
+    const uz = articleUz(a);
+    return {
+      id: a.id,
+      title: a.title || '',
+      description: a.description || '',
+      url: a.url || '',
+      image: a.image || a.imageUrl || a.urlToImage || '',
+      source: a.source?.name || a.source || '',
+      publishedAt: a.publishedAt || '',
+      dateKey: a.dateKey || '',
+      mode: a.mode || currentMode || '',
+      uzText: a.uzText || (uz ? packText(uz.title, uz.desc) : ''),
+      originalText: a.originalText || '',
+      savedAt: new Date().toISOString()
+    };
+  }
+  function toggleLater(id, articleOpt){
     if(!id) return false;
-    const ids = readList(PREF_LATER);
-    const on = ids.includes(id);
-    writeList(PREF_LATER, on ? ids.filter(x => x !== id) : ids.concat(id));
-    return !on;
+    const items = getSavedList();
+    const idx = items.findIndex(x => x.id === id);
+    if(idx >= 0){
+      items.splice(idx, 1);
+      writeList(PREF_LATER, items);
+      return false; // endi saqlanmagan
+    }
+    const live = articleOpt
+      || (currentArticles || []).find(a => a.id === id)
+      || null;
+    const snap = snapshotArticle(live) || { id, title: '', savedAt: new Date().toISOString() };
+    items.unshift(snap);
+    writeList(PREF_LATER, items);
+    return true; // saqlandi
   }
   const INITIAL_FEED = 7;
   const MORE_FEED = 5;
@@ -1284,7 +1366,7 @@ import {
   function loadPrefs(){
     try{
       const m = localStorage.getItem(PREF_MODE);
-      if(m === 'global' || m === 'local' || m === 'history') currentMode = m;
+      if(m === 'global' || m === 'local' || m === 'history' || m === 'saved') currentMode = m;
       translateModeOn = localStorage.getItem(PREF_TRANSLATE) === '1';
       const vis = parseInt(localStorage.getItem(PREF_VISIBLE + '-' + currentMode) || '', 10);
       visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
@@ -1332,6 +1414,9 @@ import {
       if(currentMode === 'history'){
         feedLabel.textContent = "TARIX — KUNLARNI TANLA";
         renderDayList();
+      }else if(currentMode === 'saved'){
+        feedLabel.textContent = "SAQLANGANLAR";
+        loadSavedFeed();
       }else{
         feedLabel.textContent = currentMode === 'global' ? "Bugungi to'plam" : "O'zbekiston to'plami";
         loadFeed();
@@ -1709,16 +1794,20 @@ import {
          </div>`
       : '';
 
+    const noMoreBtn = opts.history || opts.saved;
     if(!articles.length){
-      feedEl.innerHTML = backNav + '<div class="placeholder">BU KUN UCHUN YANGILIK TOPILMADI</div>'
-        + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">Yana 5 ta</button></div>');
+      const emptyMsg = opts.saved
+        ? 'SAQLANGAN YANGILIK YO\'Q — bookmark tugmasini bosing'
+        : 'BU KUN UCHUN YANGILIK TOPILMADI';
+      feedEl.innerHTML = backNav + `<div class="placeholder">${emptyMsg}</div>`
+        + (noMoreBtn ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">Yana 5 ta</button></div>');
       feedCount.textContent = '0 TA YANGILIK';
       if(opts.history) bindBackButton();
       const emptyMore = document.getElementById('moreBtn');
       if(emptyMore) emptyMore.addEventListener('click', loadMoreNews);
       return;
     }
-    const shown = opts.history ? articles : articles.slice(0, visibleCount);
+    const shown = (opts.history || opts.saved) ? articles : articles.slice(0, visibleCount);
     feedCount.textContent = shown.length + ' TA YANGILIK';
     // Bratishka, MUHIM: birinchi story (i===0) endi ".hero" klassi bilan
     // chiqadi — katta rasm-o'rni + katta sarlavha, screenshot'dagidek.
@@ -1727,9 +1816,13 @@ import {
     feedEl.innerHTML = backNav + shown.map((a, i) => {
       const num = String(i+1).padStart(2,'0');
       const src = sourceName(a);
-      const date = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
+      const pubDate = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
+      const savedDate = a.savedAt ? new Date(a.savedAt).toLocaleString('uz-UZ') : '';
+      const date = opts.saved
+        ? (savedDate ? `Saqlangan: ${savedDate}` : '') + (pubDate ? (savedDate ? ' · ' : '') + `GNews: ${pubDate}` : '')
+        : pubDate;
       const desc = a.description ? escapeHtml(a.description) : '';
-      const isHero = i === 0 && !opts.history;
+      const isHero = i === 0 && !opts.history && !opts.saved;
       const imgUrl = a.image || a.imageUrl || a.urlToImage || '';
       const thumb = imgUrl
         ? `<div class="story-thumb"><img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(a.title || src)}" loading="${isHero ? 'eager' : 'lazy'}" onerror="this.remove()"></div>`
@@ -1739,12 +1832,12 @@ import {
           <div class="story-top">
           ${thumb}
           <div class="story-body">
-          <div class="story-index">${isHero ? '<span class="src">BUGUNGI ENG MASHHUR</span>' : ''}<span class="src">${escapeHtml(src)}</span></div>
+          <div class="story-index">${isHero ? '<span class="src">BUGUNGI ENG MASHHUR</span>' : ''}${opts.saved ? '<span class="src">SAQLANGAN</span>' : ''}<span class="src">${escapeHtml(src)}</span></div>
             <h2 id="title-${i}"><a href="${a.url}" target="_blank" rel="noopener" id="title-link-${i}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
             <p class="desc" id="desc-${i}">${desc}</p>
             <div class="meta">${date}</div>
             <div class="card-actions">
-              <button type="button" class="later-btn${isLater(a.id) ? ' on' : ''}" data-action="later" data-id="${a.id}" title="Keyinroq">
+              <button type="button" class="later-btn${isLater(a.id) ? ' on' : ''}" data-action="later" data-id="${a.id}" title="Saqlash / chiqarish">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               </button>
               <button type="button" class="card-more" data-action="more" data-idx="${i}">
@@ -1774,7 +1867,7 @@ import {
             </div>
           </div>
         </article>`;
-    }).join('') + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">Yana 5 ta</button></div>');
+    }).join('') + (noMoreBtn ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">Yana 5 ta</button></div>');
 
     // Sidebar "Oxirgi ochilganlar" — localStorage'dagi oxirgi ochilganlar.
     // Bosilsa story'ga scroll qiladi — tashqi link emas, ichki navigatsiya.
@@ -1786,8 +1879,14 @@ import {
     feedEl.querySelectorAll('[data-action="later"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const on = toggleLater(btn.dataset.id);
+        const id = btn.dataset.id;
+        const article = (currentArticles || []).find(a => a.id === id);
+        const on = toggleLater(id, article);
         btn.classList.toggle('on', on);
+        // SAQLANGANLAR tabida chiqarib yuborsa — ro'yxatni qayta chizamiz
+        if(currentMode === 'saved' && !on){
+          loadSavedFeed();
+        }
       });
     });
     feedEl.querySelectorAll('[data-action="send"]').forEach(btn => {
@@ -1819,14 +1918,103 @@ import {
     }
   }
 
-  // Sidebar "Oxirgi ochilganlar": localStorage'dagi oxirgi ochilgan + keyinroq
-  // ro'yxatidan sarlavhalarni ko'rsatadi. Bosilsa o'sha story'ga smooth scroll.
+  async function loadSavedFeed(){
+    statusLine.textContent = 'SAQLANGANLAR YUKLANMOQDA...';
+    const saved = getSavedList();
+    if(!saved.length){
+      currentArticles = [];
+      renderFeed([], { saved: true });
+      statusLine.textContent = 'SAQLANGANLAR BO\'SH';
+      return;
+    }
+
+    // localStorage snapshot + Firestore'dan boyitish (rasm, tarjima, sana)
+    const enriched = [];
+    for(const item of saved){
+      let a = {
+        id: item.id,
+        title: item.title || '',
+        description: item.description || '',
+        url: item.url || '',
+        image: item.image || '',
+        source: item.source || '',
+        publishedAt: item.publishedAt || '',
+        dateKey: item.dateKey || '',
+        mode: item.mode || '',
+        uzText: item.uzText || '',
+        originalText: item.originalText || '',
+        savedAt: item.savedAt || ''
+      };
+      try{
+        const doc = await getArticleDoc(item.id);
+        if(doc){
+          a = {
+            ...a,
+            title: a.title || doc.title || '',
+            description: a.description || doc.description || '',
+            url: a.url || doc.url || '',
+            image: a.image || doc.image || '',
+            source: a.source || doc.source || '',
+            publishedAt: a.publishedAt || doc.publishedAt || '',
+            dateKey: a.dateKey || doc.dateKey || '',
+            mode: a.mode || doc.mode || '',
+            uzText: a.uzText || doc.uzText || '',
+            originalText: a.originalText || doc.originalText || '',
+            aiSharh: doc.aiSharh || doc.explainResult || ''
+          };
+        }
+      }catch(e){
+        console.warn('saved enrich:', e.message);
+      }
+      // Agar uzText bor bo'lsa, kartada o'zbekcha ko'rsatish (UZ TARJIMA kabi)
+      const uz = articleUz(a);
+      if(uz && uz.title){
+        a.title = uz.title;
+        if(uz.desc) a.description = uz.desc;
+      }
+      enriched.push(a);
+    }
+
+    currentArticles = enriched;
+    renderFeed(enriched, { saved: true });
+    statusLine.textContent = enriched.length + ' TA SAQLANGAN';
+  }
+
+  // Sidebar "Oxirgi ochilganlar": har doim o'zbekcha sarlavha.
+  // Avval eng yaxshi mavjud matn bilan chizamiz, keyin tarjima yo'qlarini
+  // API orqali (jumla-jumla) uzbekchaga o'tkazib DOM + localStorage yangilaymiz.
+  function looksNonUzbek(text){
+    const t = String(text || '').trim();
+    if(!t) return true;
+    // Kirill, lotin aralash, fransuz/rus/ingliz belgilar — tarjima kerak
+    if(/[а-яА-ЯёЁ]/.test(t)) return true;
+    if(/[àâäéèêëïîôùûüÿçœæÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ]/.test(t)) return true;
+    // Faqat ASCII + o'zbek lotin harflari bo'lsa ham, inglizcha bo'lishi mumkin —
+    // lekin titleUz bor bo'lsa ishonamiz. titleUz yo'q va matn "inglizcha" bo'lsa tarjima.
+    // Oddiy heuristika: o'zbek maxsus harflari (o', g', sh, ch, oʻ) yo'q va uzun so'zlar
+    // inglizcha ko'rinsa — tarjima.
+    if(/[ʻʼ‘’']/.test(t) || /[oʻgʻşčžŋ]/.test(t.toLowerCase())) return false;
+    // Qisqa o'zbekcha so'zlar bo'lishi mumkin — lekin shubhali bo'lsa tarjima qilamiz
+    // Faqat aniq non-latin yoki aniq rus/fransuz holatida majburiy.
+    return false;
+  }
+
+  function bestUzTitle(item, live){
+    if(live){
+      const uz = articleUz(live);
+      if(uz && uz.title) return uz.title;
+    }
+    if(item && item.titleUz) return item.titleUz;
+    if(live && live.title) return live.title;
+    return (item && item.title) || 'Sarlavhasiz';
+  }
+
   function renderTrending(articles){
     const list = document.getElementById('trending-list');
     const box = document.getElementById('trending');
     if(!list) return;
     const opened = readList(PREF_OPENED);
-    const laterIds = readList(PREF_LATER);
+    const savedItems = getSavedList();
     const byId = {};
     (articles || []).forEach(a => { if(a.id) byId[a.id] = a; });
     const picks = [];
@@ -1835,15 +2023,29 @@ import {
         const live = byId[item.id];
         picks.push({
           id: item.id,
-          title: (live && (articleUz(live)?.title || live.title)) || item.title || 'Sarlavhasiz'
+          title: bestUzTitle(item, live),
+          rawTitle: (live && live.title) || item.title || '',
+          needsTranslate: !(item.titleUz || (live && articleUz(live)?.title))
         });
       }
     });
-    laterIds.forEach(id => {
+    savedItems.forEach(item => {
       if(picks.length >= 6) return;
-      if(picks.some(p => p.id === id)) return;
-      const live = byId[id];
-      if(live) picks.push({ id, title: articleUz(live)?.title || live.title || 'Keyinroq' });
+      if(!item || !item.id) return;
+      if(picks.some(p => p.id === item.id)) return;
+      const live = byId[item.id];
+      const uzLive = live ? articleUz(live) : null;
+      const title = (uzLive && uzLive.title)
+        || item.titleUz
+        || (live && live.title)
+        || item.title
+        || 'Saqlangan';
+      picks.push({
+        id: item.id,
+        title,
+        rawTitle: (live && live.title) || item.title || '',
+        needsTranslate: !(uzLive?.title || item.titleUz)
+      });
     });
     if(!picks.length){
       list.innerHTML = '<li class="t-empty">Hali ochilgan yangilik yo\'q</li>';
@@ -1853,7 +2055,7 @@ import {
     list.innerHTML = picks.map((a, k) => `
       <li>
         <span class="t-num">${k+1}.</span>
-        <a href="#" data-open-id="${a.id}">${escapeHtml(a.title)}</a>
+        <a href="#" data-open-id="${a.id}" data-pick-idx="${k}">${escapeHtml(a.title)}</a>
       </li>`).join('');
     list.querySelectorAll('[data-open-id]').forEach(link => {
       link.addEventListener('click', (e) => {
@@ -1866,6 +2068,68 @@ import {
         }
       });
     });
+
+    // Fon: o'zbekcha yo'q yoki aniq boshqa tildagi sarlavhalarni tarjima qilamiz
+    ensureTrendingUz(picks, list).catch(e => console.warn('trending tarjima:', e.message));
+  }
+
+  async function ensureTrendingUz(picks, listEl){
+    const need = picks
+      .map((p, i) => ({ ...p, i }))
+      .filter(p => {
+        if(p.needsTranslate) return true;
+        return looksNonUzbek(p.title);
+      })
+      .filter(p => p.rawTitle || p.title);
+
+    if(!need.length) return;
+
+    // Bitta so'rovda barcha kerakli sarlavhalar (API jumla-jumla tarjima qiladi)
+    const items = need.map((p, j) => ({
+      id: j,
+      title: p.rawTitle || p.title,
+      desc: ''
+    }));
+
+    let translations = [];
+    try{
+      const res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, target: 'uz' })
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      translations = data.translations || [];
+    }catch(err){
+      console.warn('Sidebar tarjima xato:', err.message);
+      return;
+    }
+
+    const opened = readList(PREF_OPENED);
+    let openedChanged = false;
+
+    need.forEach((p, j) => {
+      const t = translations[j];
+      const titleUz = (t && t.title) ? t.title.trim() : '';
+      if(!titleUz) return;
+
+      // DOM yangilash
+      const link = listEl.querySelector(`[data-pick-idx="${p.i}"]`);
+      if(link){
+        link.textContent = titleUz;
+        link.classList.add('fade-in');
+      }
+
+      // localStorage — keyingi safar darhol o'zbekcha chiqsin
+      const idx = opened.findIndex(x => x && x.id === p.id);
+      if(idx >= 0){
+        opened[idx] = { ...opened[idx], titleUz, title: opened[idx].title || p.rawTitle };
+        openedChanged = true;
+      }
+    });
+
+    if(openedChanged) writeList(PREF_OPENED, opened);
   }
 
   function bindBackButton(){
@@ -2012,14 +2276,29 @@ import {
   async function toggleCardMore(idx){
     const card = document.querySelector(`.story[data-idx="${idx}"]`);
     if(!card) return;
+
+    // Accordion: boshqa ochiq more'larni yopamiz (joriy ochilayotgan bo'lsa)
+    const willOpen = !card.classList.contains('open');
+    if(willOpen){
+      document.querySelectorAll('#feed .story.open').forEach(other => {
+        if(other !== card){
+          other.classList.remove('open');
+          const otherLabel = other.querySelector('.card-more-label');
+          if(otherLabel) otherLabel.textContent = 'More';
+        }
+      });
+    }
+
     const open = card.classList.toggle('open');
     const label = card.querySelector('.card-more-label');
-    if(label) label.textContent = 'More';
+    if(label) label.textContent = open ? 'Less' : 'More';
     if(open){
       const a = currentArticles[idx];
       markOpened(a);
       card.classList.add('read');
       renderTrending(currentArticles);
+      // Smooth: avval panel ochiladi, keyin tarjima + AI ketma-ket keladi
+      await new Promise(r => setTimeout(r, 280));
       await toggleDiscuss(idx);
       await handleExplain(idx);
     }
@@ -2043,7 +2322,26 @@ import {
         const uz = articleUz(cached);
         const tTitle = uz?.title || '';
         const tDesc = uz?.desc || '';
+        if(tTitle){
+          a.uzText = packText(tTitle, tDesc || '');
+          try{
+            const opened = readList(PREF_OPENED);
+            const oi = opened.findIndex(x => x && x.id === a.id);
+            if(oi >= 0){
+              opened[oi] = { ...opened[oi], titleUz: tTitle, title: opened[oi].title || a.title };
+              writeList(PREF_OPENED, opened);
+              renderTrending(currentArticles);
+            }
+          }catch(_){}
+        }
+        translateBody.classList.remove('fade-in');
+        void translateBody.offsetWidth;
+        translateBody.classList.add('fade-in');
         renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
+        await new Promise(r => setTimeout(r, 220));
+        body.classList.remove('fade-in');
+        void body.offsetWidth;
+        body.classList.add('fade-in');
         renderMd(body, cached.aiSharh || cached.explainResult);
         return;
       }
@@ -2054,8 +2352,8 @@ import {
     // 1-qadam: haqiqiy tarjima (Google Translate, key kerak emas, Groq bilan
     // aloqasi yo'q — shuning uchun Groq band bo'lsa ham bu qadam ishlaydi).
     if(btn) btn.textContent = 'TARJIMA QILINMOQDA...';
-    translateBody.textContent = 'Tarjima qilinmoqda...';
-    body.textContent = '';
+    translateBody.innerHTML = '<span class="ai-loading">Tarjima qilinmoqda...</span>';
+    body.innerHTML = '';
 
     const orig = articleOriginal(a);
     let titleUz = orig.title;
@@ -2066,6 +2364,8 @@ import {
       if(cachedUz && cachedUz.title){
         titleUz = cachedUz.title;
         descUz = cachedUz.desc;
+        // Keshdan — biroz sekinroq ko'rinsin (smooth)
+        await new Promise(r => setTimeout(r, 200));
       }else{
         const res = await fetch('/api/translate', {
           method: 'POST',
@@ -2083,6 +2383,19 @@ import {
         a.uzText = packText(titleUz, descUz);
         a.originalText = packText(orig.title, orig.desc);
       }
+      // Sidebar "Oxirgi ochilganlar" uchun o'zbekcha sarlavhani saqlab qo'yamiz
+      try{
+        const opened = readList(PREF_OPENED);
+        const oi = opened.findIndex(x => x && x.id === a.id);
+        if(oi >= 0 && titleUz){
+          opened[oi] = { ...opened[oi], titleUz, title: opened[oi].title || orig.title };
+          writeList(PREF_OPENED, opened);
+          renderTrending(currentArticles);
+        }
+      }catch(_){}
+      translateBody.classList.remove('fade-in');
+      void translateBody.offsetWidth;
+      translateBody.classList.add('fade-in');
       renderMd(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''));
     }catch(err){
       renderMd(translateBody, 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.');
@@ -2092,7 +2405,8 @@ import {
     // asosida ishlaydi. Til qanday bo'lishidan qat'i nazar (auto-detect),
     // javobni har doim faqat o'zbek tilida yozishi qattiq talab qilinadi.
     if(btn) btn.textContent = 'TUSHUNTIRILMOQDA...';
-    body.textContent = 'AI javob tayyorlayapti...';
+    body.innerHTML = '<span class="ai-loading">AI o\'ylamoqda...</span>';
+    await new Promise(r => setTimeout(r, 180));
 
     const sys = `Sen tajribali xalqaro yangiliklar sharhlovchisisan. Foydalanuvchi senga allaqachon o'zbek tiliga tarjima qilingan sarlavha va tavsifni beradi (lekin asl til har xil bo'lishi mumkin — ingliz, rus va h.k., buni avtomatik aniqlab ol). Javobingni QATIYAN FAQAT O'ZBEK TILIDA yoz, boshqa hech qanday tilda emas. Quyidagi tartibda javob ber:
 Quyidagi tartibda, qisqa va aniq yoz:
@@ -2111,6 +2425,9 @@ Murakkab so'zlarni tushuntir. Taxminni fakt qilib yozma. Sarlavhani takrorlama.`
         { role: 'system', content: sys },
         { role: 'user', content: userMsg }
       ]);
+      body.classList.remove('fade-in');
+      void body.offsetWidth;
+      body.classList.add('fade-in');
       renderMd(body, result || 'AI bo\'sh javob qaytardi.');
 
       // Natijani (tarjima + tushuntirish) birgalikda Firestore'ga yozamiz —
@@ -2448,6 +2765,9 @@ QATIY USLUB:
   if(currentMode === 'history'){
     feedLabel.textContent = "TARIX — KUNLARNI TANLA";
     renderDayList();
+  }else if(currentMode === 'saved'){
+    feedLabel.textContent = "SAQLANGANLAR";
+    loadSavedFeed();
   }else{
     feedLabel.textContent = currentMode === 'global' ? "Bugungi to'plam" : "O'zbekiston to'plami";
     loadFeed();

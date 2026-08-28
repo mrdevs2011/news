@@ -96,14 +96,18 @@ async function translateBlock(text, target) {
 async function translateOne(text, target) {
   if (!text) return '';
   const sentences = splitSentences(text);
+  // Har bir jumlani alohida tarjima — aralash tillar (ru/en/fr) bo'lsa ham
+  // sifat yaxshiroq, chunki provider butun blokni bitta til deb olib ketmaydi.
   if (sentences.length <= 1) return translateBlock(text, target);
 
   const out = [];
-  const CHUNK = 4;
-  for (let i = 0; i < sentences.length; i += CHUNK) {
-    const batch = sentences.slice(i, i + CHUNK);
-    const done = await Promise.all(batch.map((s) => translateBlock(s, target)));
-    out.push(...done);
+  for (const s of sentences) {
+    try {
+      out.push(await translateBlock(s, target));
+    } catch (err) {
+      console.warn('[translate] jumla yiqildi, asl qoldi:', err.message);
+      out.push(s);
+    }
   }
   return out.join(' ').replace(/\s+/g, ' ').trim();
 }
