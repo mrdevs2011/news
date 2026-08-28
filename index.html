@@ -798,17 +798,18 @@ try{
   .chat-msg:focus, .chat-msg:focus-visible{
     outline:none !important;
   }
-  /* So'zma-so'z smooth paydo bo'lish — typewriter emas */
+  /* So'zma-so'z smooth paydo bo'lish — typewriter emas.
+     Muhim: animation FAQAT JS orqali beriladi (har so'z o'z vaqtida).
+     CSS da animation bo'lsa, barcha so'zlar birga chiqib ketardi. */
   .word-reveal{
-    display:inline;
+    display:block;
   }
   .word-reveal .wr-word{
     display:inline;
     opacity:0;
-    animation:wordIn .28s ease forwards;
   }
   @keyframes wordIn{
-    from{ opacity:0; transform:translateY(3px); }
+    from{ opacity:0; transform:translateY(4px); }
     to{ opacity:1; transform:translateY(0); }
   }
   /* Brauzer scroll-anchoring sahifani hech qachon o'zi siljitmasin */
@@ -1326,14 +1327,42 @@ import {
     }
   }
 
-  // Sahifa scrollini qotirish — more/AI/chat paytida hech qachon sakramasin
+  // Sahifa scrollini qotirish — more/AI/chat paytida layout sakrashini oldini oladi.
+  // Foydalanuvchi o'zi scroll qilsa (wheel/touch/keyboard) pin darhol bo'shatiladi —
+  // shunda AI javob chiqayotganda scroll qilganda sahifa titramaydi.
   let _pinY = null;
   let _pinUntil = 0;
   let _pinRaf = 0;
+  let _userScrolling = false;
+  let _userScrollTimer = 0;
   function getScrollY(){
     return window.scrollY || document.documentElement.scrollTop || window.pageYOffset || 0;
   }
+  function releasePin(){
+    _pinY = null;
+    _pinUntil = 0;
+    if(_pinRaf){
+      cancelAnimationFrame(_pinRaf);
+      _pinRaf = 0;
+    }
+  }
+  function markUserScroll(){
+    _userScrolling = true;
+    releasePin();
+    clearTimeout(_userScrollTimer);
+    _userScrollTimer = setTimeout(() => { _userScrolling = false; }, 180);
+  }
+  // Foydalanuvchi scroll ni aniqlash — pin bilan kurashmaslik uchun
+  window.addEventListener('wheel', markUserScroll, { passive: true, capture: true });
+  window.addEventListener('touchmove', markUserScroll, { passive: true, capture: true });
+  window.addEventListener('keydown', (e) => {
+    // Space, PageUp/Down, Arrow keys, Home/End
+    if([32, 33, 34, 35, 36, 38, 40].includes(e.keyCode)) markUserScroll();
+  }, { passive: true, capture: true });
+
   function pinScroll(ms, forceY){
+    // Foydalanuvchi hozir scroll qilayotgan bo'lsa — pin qo'ymaymiz
+    if(_userScrolling) return;
     const now = Date.now();
     // Agar allaqachon pin aktiv bo'lsa — Y ni qayta yozmaymiz (silkinish oldini oladi)
     if(forceY != null){
@@ -1343,7 +1372,7 @@ import {
     }
     _pinUntil = now + (ms == null ? 900 : ms);
     const apply = () => {
-      if(_pinY == null) return;
+      if(_pinY == null || _userScrolling) return;
       const y = getScrollY();
       if(Math.abs(y - _pinY) > 0.5){
         try{ window.scrollTo({ top: _pinY, left: 0, behavior: 'instant' }); }
@@ -1352,9 +1381,10 @@ import {
     };
     apply();
     const tick = () => {
-      if(Date.now() > _pinUntil){
+      if(Date.now() > _pinUntil || _userScrolling){
         _pinRaf = 0;
-        _pinY = null;
+        if(_userScrolling) _pinY = null;
+        else if(Date.now() > _pinUntil) _pinY = null;
         return;
       }
       apply();
@@ -1369,12 +1399,20 @@ import {
     pinScroll(1500);
     const safe = (text || '').toString();
     const asMd = !!opts.markdown;
-    const delay = opts.delay != null ? opts.delay : 36;
+    // Sekinroq — har so'z aniq ko'rinsin
+    const delay = opts.delay != null ? opts.delay : 42;
     if(!safe.trim()){
       if(asMd) renderMd(el, safe);
       else el.textContent = safe;
       return;
     }
+
+    // Parent fade-in butun matnni birga chiqarib yuboradi — o'chiramiz
+    el.classList.remove('fade-in');
+    el.style.opacity = '1';
+    el.style.animation = 'none';
+
+    // Avval oddiy matn sifatida so'zma-so'z ko'rsatamiz, oxirida markdown formatlaymiz
     const parts = safe.split(/(\s+)/);
     el.innerHTML = '';
     el.classList.add('word-reveal');
@@ -1383,27 +1421,40 @@ import {
     for(const p of parts){
       if(!p) continue;
       if(/^\s+$/.test(p)){
-        frag.appendChild(document.createTextNode(p));
+        if(p.includes('\n')){
+          frag.appendChild(document.createElement('br'));
+        }else{
+          frag.appendChild(document.createTextNode(p));
+        }
       }else{
         const span = document.createElement('span');
         span.className = 'wr-word';
         span.textContent = p;
         span.style.opacity = '0';
+        span.style.display = 'inline';
         frag.appendChild(span);
         spans.push(span);
       }
     }
     el.appendChild(frag);
+
+    // Har bir so'zni ketma-ket, sekin ko'rsatamiz
     for(let i = 0; i < spans.length; i++){
-      spans[i].style.opacity = '';
-      void spans[i].offsetWidth;
-      spans[i].style.animation = 'wordIn .28s ease forwards';
-      pinScroll(500);
+      const sp = spans[i];
+      sp.style.opacity = '0';
+      sp.style.animation = 'none';
+      void sp.offsetWidth; // reflow — animatsiya qayta ishlashi uchun
+      sp.style.animation = 'wordIn .32s ease forwards';
+      if(i % 5 === 0) pinScroll(350);
       await new Promise(r => setTimeout(r, delay));
     }
+
     el.classList.remove('word-reveal');
-    if(asMd) renderMd(el, safe);
-    pinScroll(300);
+    // Markdown formatlash — matn allaqachon ko'rinib turgan
+    if(asMd){
+      renderMd(el, safe);
+    }
+    pinScroll(200);
   }
 
   // =========================================================
@@ -2572,15 +2623,10 @@ import {
             }
           }catch(_){}
         }
-        translateBody.classList.remove('fade-in');
-        void translateBody.offsetWidth;
-        translateBody.classList.add('fade-in');
-        await revealWordsSmooth(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''), { markdown: true, delay: 32 });
+        // fade-in o'rniga so'zma-so'z reveal
+        await revealWordsSmooth(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''), { markdown: true, delay: 38 });
         await new Promise(r => setTimeout(r, 120));
-        body.classList.remove('fade-in');
-        void body.offsetWidth;
-        body.classList.add('fade-in');
-        await revealWordsSmooth(body, cached.aiSharh || cached.explainResult, { markdown: true, delay: 32 });
+        await revealWordsSmooth(body, cached.aiSharh || cached.explainResult, { markdown: true, delay: 38 });
         return;
       }
     }catch(e){
@@ -2631,12 +2677,9 @@ import {
           renderTrending(currentArticles);
         }
       }catch(_){}
-      translateBody.classList.remove('fade-in');
-      void translateBody.offsetWidth;
-      translateBody.classList.add('fade-in');
-      await revealWordsSmooth(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''), { markdown: true, delay: 32 });
+      await revealWordsSmooth(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''), { markdown: true, delay: 38 });
     }catch(err){
-      await revealWordsSmooth(translateBody, 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.', { delay: 28 });
+      await revealWordsSmooth(translateBody, 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.', { delay: 36 });
     }
 
     // 2-qadam: Groq — endi asl matn emas, TARJIMA QILINGAN o'zbekcha matn
@@ -2663,10 +2706,7 @@ Murakkab so'zlarni tushuntir. Taxminni fakt qilib yozma. Sarlavhani takrorlama.`
         { role: 'system', content: sys },
         { role: 'user', content: userMsg }
       ]);
-      body.classList.remove('fade-in');
-      void body.offsetWidth;
-      body.classList.add('fade-in');
-      await revealWordsSmooth(body, result || 'AI bo\'sh javob qaytardi.', { markdown: true, delay: 32 });
+      await revealWordsSmooth(body, result || 'AI bo\'sh javob qaytardi.', { markdown: true, delay: 38 });
 
       // Natijani (tarjima + tushuntirish) birgalikda Firestore'ga yozamiz —
       // keyingi safar shu article uchun 0-qadam buni topadi va na tarjima,
