@@ -7,8 +7,6 @@
 //   OPENROUTER_KEYS   = "sk-or-xxx"
 //   GEMINI_KEYS       = "AIzaxxx,AIzayyy"
 
-const PROVIDER_ORDER = ['groq', 'openrouter', 'gemini'];
-
 function loadKeyPools() {
   return {
     groq: (process.env.GROQ_KEYS || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -74,8 +72,12 @@ async function callGemini(key, messages) {
     contents,
     ...(sysMsg ? { systemInstruction: { parts: [{ text: sysMsg.content }] } } : {})
   };
+  // Bratan, MUHIM: "gemini-3-flash" degan model UMUMAN MAVJUD EMAS — sen screenshot
+  // yuborgan xato aynan shundan edi. gemini-2.0-flash hozircha eng barqaror va bepul
+  // tier'da ishlaydigan variant. Agar bu ham 404 bersa — key'ing bilan qaysi modellar
+  // ochiqligini shu yerdan tekshir: https://generativelanguage.googleapis.com/v1beta/models?key=SENING_KEYING
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${encodeURIComponent(key)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,6 +96,35 @@ async function callGemini(key, messages) {
 
 const CALLERS = { groq: callGroq, openrouter: callOpenRouter, gemini: callGemini };
 
+// Sen aytgan aniq tartib:
+// 1-AYLANISH: groq (barcha key'lar) -> openrouter (barcha key'lar) -> gemini (barcha key'lar)
+// Agar shu 3tasi ham to'liq tugasa (hammasi limitga urilsa/xato bersa) —
+// 2-AYLANISH (retry loop): yana groq -> openrouter (gemini YO'Q — faqat 2 marta urinamiz, cheksiz aylanmaymiz).
+// Shundan keyin ham hech narsa ishlamasa — foydalanuvchiga "biroz kutib tur" xabari chiqadi.
+const FIRST_PASS = ['groq', 'openrouter', 'gemini'];
+const RETRY_PASS = ['groq', 'openrouter'];
+
+// Bitta provider'ning barcha key'larini TARTIB BILAN (0-indexdan boshlab, tasodifiy emas)
+// sinab chiqadi. Bratan aniq shuni so'radi: har doim DEFAULT (birinchi) key'dan
+// boshlansin, faqat o'sha limitga urilganda keyingisiga o'tsin — random offset kerak emas.
+async function tryProvider(provider, pool, messages) {
+  for (let i = 0; i < pool.length; i++) {
+    const key = pool[i];
+    try {
+      const result = await CALLERS[provider](key, messages);
+      return { ok: true, result, provider };
+    } catch (err) {
+      console.warn(`[${provider}] key#${i + 1}/${pool.length} xato:`, err.message);
+      // 401/403/429 — sabab qanaqa bo'lishidan qat'iy nazar, keyingi key'ga o'tamiz.
+      // Serverless funksiya har chaqiruvda yangi instance bo'lishi mumkin, shuning
+      // uchun "bu key limitga urildi" degan holatni doimiy eslab qololmaymiz —
+      // shu sabab har so'rovda qaytadan 1-key'dan boshlanadi, bu normal.
+      continue;
+    }
+  }
+  return { ok: false };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Faqat POST qabul qilinadi.' });
@@ -107,37 +138,34 @@ export default async function handler(req, res) {
   }
 
   const KEY_POOLS = loadKeyPools();
-  let lastErr = null;
 
-  for (const provider of PROVIDER_ORDER) {
+  // 1-AYLANISH: groq -> openrouter -> gemini
+  for (const provider of FIRST_PASS) {
     const pool = KEY_POOLS[provider];
     if (!pool.length) continue;
-
-    // Ko'p key bo'lsa (masalan 10-20 tasi) — har doim 0-indexdan boshlab
-    // sinasak, birinchi key doim eng ko'p urilib, tezroq limitga yetadi.
-    // Shuning uchun har so'rovda TASODIFIY boshlang'ich nuqtadan boshlaymiz —
-    // bu oddiy load-balancing, key'lar orasida yuk taxminan teng taqsimlanadi.
-    const startOffset = Math.floor(Math.random() * pool.length);
-
-    for (let i = 0; i < pool.length; i++) {
-      const idx = (startOffset + i) % pool.length;
-      const key = pool[idx];
-      try {
-        const result = await CALLERS[provider](key, messages);
-        res.status(200).json({ result, provider });
-        return;
-      } catch (err) {
-        console.warn(`[${provider}] key#${idx} xato:`, err.message);
-        lastErr = err;
-        // 401/403/429 bo'lsa ham, keyingi key'ga o'tamiz — dead key tracking
-        // serverless'da state saqlamaydi (har chaqiruv yangi instance bo'lishi
-        // mumkin), shuning uchun cheklovni doimiy eslab qololmaymiz.
-        continue;
-      }
+    const out = await tryProvider(provider, pool, messages);
+    if (out.ok) {
+      res.status(200).json({ result: out.result, provider: out.provider });
+      return;
     }
   }
 
-  res.status(502).json({
-    error: (lastErr && lastErr.message) || "Barcha AI provider/key'lar ishlamadi."
+  // 2-AYLANISH (retry loop): 1-aylanishda HAMMASI (groq, openrouter, gemini) tugagan
+  // bo'lsa ham, ba'zan bir necha soniyada rate-limit oyna qayta ochilishi mumkin —
+  // shuning uchun groq va openrouter'ni yana bir bor sinab ko'ramiz.
+  for (const provider of RETRY_PASS) {
+    const pool = KEY_POOLS[provider];
+    if (!pool.length) continue;
+    const out = await tryProvider(provider, pool, messages);
+    if (out.ok) {
+      res.status(200).json({ result: out.result, provider: out.provider });
+      return;
+    }
+  }
+
+  // Ikkala aylanish ham quladi — endi rostini aytamiz, "AI ishlamayapti" emas,
+  // "hozircha bandmiz, biroz kut" degan aniq xabar.
+  res.status(503).json({
+    error: "Barcha AI provayderlar (Groq, OpenRouter, Gemini) hozir band yoki kunlik limitga uchagan. Iltimos, bir necha daqiqadan so'ng qayta urinib ko'ring."
   });
 }
