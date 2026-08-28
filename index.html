@@ -1606,6 +1606,28 @@ import {
     pinScroll(200);
   }
 
+  // Bratan, MUHIM: bu FAQAT keshdan (Firestore'da avvaldan mavjud) kelgan
+  // kontent uchun — foydalanuvchi buni oldin ALLAQACHON so'zma-so'z ko'rgan
+  // bo'lishi mumkin, shuning uchun ikkinchi safar sekin "typing" kerak emas.
+  // To'g'ridan-to'g'ri qo'yiladi va faqat tez (fade-in) bilan chiqadi.
+  // Sekin so'zma-so'z reveal (revealWordsSmooth) FAQAT birinchi marta,
+  // real AI/tarjima natijasi YANGI kelganda ishlatiladi.
+  function revealFast(el, text, opts = {}){
+    pinScroll(600);
+    const safe = (text || '').toString();
+    el.classList.remove('word-reveal');
+    el.style.animation = 'none';
+    el.style.opacity = '';
+    if(opts.markdown) renderMd(el, safe);
+    else el.textContent = safe;
+    // Eski fade-in klassini olib tashlab qayta qo'shamiz — shunda
+    // ikkinchi marta ochilganda ham animatsiya qayta ishga tushadi.
+    el.classList.remove('fade-in');
+    void el.offsetWidth; // reflow — animatsiya qayta boshlanishi uchun
+    el.classList.add('fade-in');
+    pinScroll(200);
+  }
+
   // =========================================================
   // 0.1) STATUS HELPERS
   // =========================================================
@@ -2823,10 +2845,12 @@ import {
         }
         a.aiSharh = cached.aiSharh || cached.explainResult || '';
         a.explainResult = a.aiSharh;
-        // fade-in o'rniga so'zma-so'z reveal
-        await revealWordsSmooth(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''), { markdown: true, delay: 38 });
-        await new Promise(r => setTimeout(r, 120));
-        await revealWordsSmooth(body, a.aiSharh, { markdown: true, delay: 38 });
+        // Bratan aytdi: bu KESH filiali — bu maqola oldin ALLAQACHON ochilgan
+        // va tarjima/tushuntirish Firestore'da tayyor turibdi. Shuning uchun
+        // endi sekin so'zma-so'z "typing" EMAS — tez, smooth fade-in bilan
+        // chiqadi. Sekin reveal FAQAT pastda, real AI javob YANGI kelganda.
+        revealFast(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''), { markdown: true });
+        revealFast(body, a.aiSharh, { markdown: true });
         return;
       }
     }catch(e){
@@ -2842,14 +2866,14 @@ import {
     const orig = articleOriginal(a);
     let titleUz = orig.title;
     let descUz = orig.desc;
+    let translateFromCache = false;
     try{
       const cachedDoc = await getArticleDoc(a.id);
       const cachedUz = articleUz(cachedDoc || a);
       if(cachedUz && cachedUz.title){
         titleUz = cachedUz.title;
         descUz = cachedUz.desc;
-        // Keshdan — biroz sekinroq ko'rinsin (smooth)
-        await new Promise(r => setTimeout(r, 200));
+        translateFromCache = true;
       }else{
         const res = await fetch('/api/translate', {
           method: 'POST',
@@ -2877,7 +2901,12 @@ import {
           renderTrending(currentArticles);
         }
       }catch(_){}
-      await revealWordsSmooth(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''), { markdown: true, delay: 38 });
+      if(translateFromCache){
+        // Bu tarjima ham keshdan — tez fade-in, sekin typing kerak emas.
+        revealFast(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''), { markdown: true });
+      }else{
+        await revealWordsSmooth(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''), { markdown: true, delay: 38 });
+      }
     }catch(err){
       await revealWordsSmooth(translateBody, 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.', { delay: 36 });
     }
