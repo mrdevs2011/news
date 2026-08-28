@@ -147,7 +147,6 @@ try{
   .masthead-row{
     display:flex;
     align-items:center;
-    justify-content:space-between;
     flex-wrap:nowrap;
     gap:10px;
     min-width:0;
@@ -180,6 +179,7 @@ try{
     gap:6px;
     flex-wrap:nowrap;
     min-width:0;
+    margin-left:auto;
     overflow-x:auto;
     -webkit-overflow-scrolling:touch;
     scrollbar-width:none;
@@ -265,7 +265,15 @@ try{
     gap:6px;
   }
 
-  #clock{color:var(--wire-amber); font-weight:700;}
+  #clock{
+    color:var(--wire-amber);
+    font-weight:700;
+    font-family:var(--mono);
+    font-size:13px;
+    letter-spacing:.02em;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
   #aiStatus{color:var(--ink-dim);}
   #aiStatus.ok{color:var(--wire-green);}
   #aiStatus.bad{color:var(--wire-red);}
@@ -331,6 +339,7 @@ try{
      tab'lar shu qatorga tushdi. Asosiy header endi toza gazeta-masthead,
      texnik status/kontrol qismi esa alohida ingichka chiziq ostida. */
   .control-bar{
+    display:none;
     position:fixed;
     top:var(--header-h);
     left:0;
@@ -339,7 +348,6 @@ try{
     width:100%;
     max-width:none;
     margin:0;
-    display:flex;
     align-items:center;
     justify-content:center;
     gap:10px;
@@ -1216,6 +1224,7 @@ try{
     }
     nav.top-nav{ gap:4px; }
     nav.top-nav .hdr-btn{ width:36px; height:36px; padding:6px; border-radius:10px; }
+    #clock{ display:none; }
   }
 
   /* Markdown render qilingan matn uchun uslub — h2/h3, bold, ro'yxatlar
@@ -1259,6 +1268,7 @@ try{
         FMN
       </h1>
     </div>
+    <span id="clock">--:--:--</span>
     <nav class="top-nav" aria-label="Asosiy navigatsiya">
       <button type="button" class="hdr-btn tab-btn" data-mode="saved" title="Saqlanganlar" aria-label="Saqlanganlar">
         <span class="hdr-ico" aria-hidden="true">
@@ -1305,7 +1315,6 @@ try{
 
 <div class="control-bar">
   <div class="control-left">
-    <span id="clock">--:--:--</span>
     <span class="dev-status" id="dbStatus"></span>
     <span class="dev-status" id="aiStatus"></span>
     <span class="dev-status status-line" id="statusLine"></span>
@@ -1614,10 +1623,13 @@ import {
   setDbStatus('FIRESTORE ULANDI', 'ok');
 
   // =========================================================
-  // 1) AI CALL LAYER — endi server-side proxy orqali.
-  //    Fallback zanjiri (groq -> openrouter -> gemini) va key round-robin
-  //    logikasi /api/ai-chat.js ichiga ko'chdi. Frontend faqat shu endpoint'ga
-  //    messages jo'natadi, qaysi provider ishlaganini bilishi shart emas.
+  // 1) AI CALL LAYER — server-side proxy orqali.
+  //    DIQQAT (bratan, bu real holat): /api/ai-chat.js hozir FAQAT Groq'ga
+  //    ulanadi, BITTA key (GROQ_KEY) bilan, fallback provider YO'Q, key
+  //    rotation YO'Q. OpenRouter/Gemini olib tashlangan. Ya'ni Groq'da
+  //    rate-limit yoki outage bo'lsa — AI tushuntirish, tarjima-tushuntirish
+  //    va chat FUNKSIYALARI BUTUNLAY to'xtaydi (butun sayt bo'yicha), toki
+  //    Groq tiklanmaguncha yoki key almashtirilmaguncha.
   // =========================================================
   async function aiChat(messages){
     setAiStatus('SO\'ROV YUBORILMOQDA...', '');
@@ -2304,7 +2316,7 @@ import {
           ${thumb}
           <div class="story-body">
           <div class="story-index">${isHero ? '<span class="src">BUGUNGI ENG MASHHUR</span>' : ''}${opts.saved ? '<span class="src">SAQLANGAN</span>' : ''}<span class="src">${escapeHtml(src)}</span></div>
-            <h2 id="title-${realIdx}"><a href="${a.url}" target="_blank" rel="noopener" id="title-link-${realIdx}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
+            <h2 id="title-${realIdx}"><a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" id="title-link-${realIdx}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
             <p class="desc" id="desc-${realIdx}">${desc}</p>
             <div class="meta">${date}</div>
             <div class="card-actions">
