@@ -281,3 +281,47 @@ export async function waitForNewsSlot(dateKey, mode, slot, timeoutMs = 25000) {
   }
   return false;
 }
+
+// ---- Foydalanuvchi holati (users/{uid}) ----
+// Bratan aytdi: localStorage ENDI ISHLATILMAYDI (faqat anonim uid kaliti
+// bundan mustasno — u shaxsiy ma'lumot emas, faqat tasodifiy identifikator).
+// Tema, rejim/sozlamalar, o'qilgan/keyinroq/ochilgan ro'yxatlari — HAMMASI
+// shu bitta hujjatda, Firestore'da saqlanadi.
+
+export async function getUserState(uid) {
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() : null;
+}
+
+// Qisman yangilash — faqat berilgan maydonlar yoziladi (merge:true), qolgani
+// tegilmaydi. Ro'yxatlar (read/later/opened) to'liq massiv sifatida yuboriladi
+// (arrayUnion emas — chunki o'chirish/qisqartirish ham kerak bo'ladi, masalan
+// "later"dan olib tashlash).
+export async function saveUserState(uid, partial) {
+  const ref = doc(db, "users", uid);
+  await setDoc(ref, { ...partial, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+// Anonim uid — localStorage'dagi YAGONA kalit (tema bundan mustasno, u
+// alohida saqlanadi, chunki sahifa birinchi chizilishidan oldin sinxron
+// kerak bo'ladi). Bu shaxsiy ma'lumot emas, faqat tasodifiy identifikator —
+// Firestore'dagi "users/{uid}" hujjatini topish uchun ishlatiladi.
+export function getOrCreateUid() {
+  const KEY = 'fmn-uid';
+  try {
+    let uid = localStorage.getItem(KEY);
+    if (uid && /^[a-z0-9]{16,40}$/i.test(uid)) return uid;
+    uid = 'u' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    localStorage.setItem(KEY, uid);
+    return uid;
+  } catch (e) {
+    // localStorage butunlay o'chirilgan bo'lsa — sessiya davomida xotirada
+    // saqlanadigan vaqtinchalik uid (sahifa yangilanganda yo'qoladi).
+    return 'u' + Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+}

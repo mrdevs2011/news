@@ -223,6 +223,48 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- users (foydalanuvchi holati: tema, sozlamalar, read/later/opened) ----
+    // Autentifikatsiya yo'q (public), shuning uchun uid faqat tasodifiy
+    // client-generated identifikator — maxfiy ma'lumot emas, shaxsni
+    // aniqlamaydi. Himoya: maydon whitelist + o'lcham/tur limitlari.
+
+    function userAllowedKeys(data) {
+      return data.keys().hasOnly([
+        'theme', 'mode', 'translateOn', 'visibleCount', 'gnewsPage',
+        'readIds', 'laterItems', 'openedItems', 'updatedAt'
+      ]);
+    }
+
+    function themeOk(v) {
+      return !(v is string) || v in ['light', 'dark'];
+    }
+
+    function idListOk(v, maxLen) {
+      return v is list && v.size() <= maxLen;
+    }
+
+    function userFieldsOk(data) {
+      return optStr(data, 'theme', 10) && themeOk(data['theme'])
+        && (!('mode' in data) || modeOk(data['mode']))
+        && (!('translateOn' in data) || data['translateOn'] is bool)
+        && optInt(data, 'visibleCount')
+        && optInt(data, 'gnewsPage')
+        && (!('readIds' in data) || idListOk(data['readIds'], 500))
+        && (!('laterItems' in data) || idListOk(data['laterItems'], 200))
+        && (!('openedItems' in data) || idListOk(data['openedItems'], 200))
+        && optTs(data, 'updatedAt');
+    }
+
+    match /users/{uid} {
+      allow read: if true;
+      allow create, update: if uid is string
+        && uid.size() >= 8
+        && uid.size() <= 64
+        && userAllowedKeys(request.resource.data)
+        && userFieldsOk(request.resource.data);
+      allow delete: if false;
+    }
+
     // ---- Default: hamma narsa yopiq ----
     match /{document=**} {
       allow read, write: if false;

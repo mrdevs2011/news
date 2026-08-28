@@ -15,6 +15,14 @@ try{
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&display=swap');
 
+  /* Header va control-bar balandligi — JS orqali (ResizeObserver) real vaqtda
+     o'lchanadi va shu yerga yoziladi. Bu yerdagi qiymatlar faqat JS ishlab
+     ulgurmagunicha ko'rinadigan boshlang'ich taxmin (fallback). */
+  :root{
+    --header-h:56px;
+    --control-h:33px;
+  }
+
   /* Dark va Light to'liq ajratilgan — har biri o'z tokenlari */
   :root, html[data-theme="dark"]{
     --paper:#16140f;
@@ -325,7 +333,7 @@ try{
      texnik status/kontrol qismi esa alohida ingichka chiziq ostida. */
   .control-bar{
     position:fixed;
-    top:56px; /* header balandligi taxminan */
+    top:var(--header-h);
     left:0;
     right:0;
     z-index:99;
@@ -377,8 +385,8 @@ try{
   main{
     max-width:1160px;
     margin:0 auto;
-    /* header (~56px) + control-bar (~32px) + biroz bo'shliq */
-    padding:108px 32px 80px;
+    /* header + control-bar haqiqiy balandligi (JS orqali o'lchanadi) + bo'shliq */
+    padding:calc(var(--header-h) + var(--control-h) + 20px) 32px 80px;
     display:grid;
     grid-template-columns:1fr 300px;
     gap:48px;
@@ -686,10 +694,10 @@ try{
   /* SIDEBAR — doim sticky, fixed header+control ostida */
   aside#trending{
     position:sticky !important;
-    top:100px; /* header + control-bar balandligi */
+    top:calc(var(--header-h) + var(--control-h) + 12px);
     z-index:20;
     align-self:start;
-    max-height:calc(100vh - 112px);
+    max-height:calc(100vh - var(--header-h) - var(--control-h) - 24px);
     overflow-y:auto;
     overscroll-behavior:contain;
     -webkit-overflow-scrolling:touch;
@@ -1158,14 +1166,14 @@ try{
   @media (max-width:900px){
     main{
       grid-template-columns:1fr;
-      padding-top:100px;
+      padding-top:calc(var(--header-h) + var(--control-h) + 12px);
     }
     aside#trending{
       position:sticky !important;
-      top:96px;
-      max-height:calc(100vh - 108px);
+      top:calc(var(--header-h) + var(--control-h) + 8px);
+      max-height:calc(100vh - var(--header-h) - var(--control-h) - 20px);
     }
-    .control-bar{ top:52px; padding:6px 16px; }
+    .control-bar{ top:var(--header-h); padding:6px 16px; }
     nav.top-nav{ gap:5px; }
     nav.top-nav .hdr-btn{ width:38px; height:38px; padding:8px; }
     nav.top-nav .hdr-ico, nav.top-nav .hdr-ico svg{ width:16px; height:16px; }
@@ -1192,11 +1200,11 @@ try{
     .story-index .src{margin-top:0;}
     .story.hero h2{ font-size:22px; }
     header{ padding:12px 12px; }
-    .control-bar{ top:50px; padding:8px 12px; }
-    main{ padding:96px 14px 60px; }
+    .control-bar{ top:var(--header-h); padding:8px 12px; }
+    main{ padding:calc(var(--header-h) + var(--control-h) + 10px) 14px 60px; }
     aside#trending{
-      top:92px;
-      max-height:calc(100vh - 100px);
+      top:calc(var(--header-h) + var(--control-h) + 6px);
+      max-height:calc(100vh - var(--header-h) - var(--control-h) - 16px);
     }
     nav.top-nav{ gap:4px; }
     nav.top-nav .hdr-btn{ width:36px; height:36px; padding:6px; border-radius:10px; }
@@ -1343,10 +1351,48 @@ import {
   getArticlesByDateMode,
   claimNewsSlot,
   finishNewsSlot,
-  waitForNewsSlot
+  waitForNewsSlot,
+  getUserState,
+  saveUserState,
+  getOrCreateUid
 } from './firebase-init.js';
 
 (function(){
+  // =========================================================
+  // -1) HEADER/CONTROL-BAR HAQIQIY BALANDLIGINI O'LCHASH
+  //     Bratan, MUHIM: oldin --header-h/--control-h qattiq raqamlar edi
+  //     (masalan top:56px) — lekin nav.top-nav ikki qatorga tushganda,
+  //     shrift boshqacha yuklanganda yoki ekran torayganda haqiqiy
+  //     balandlik farq qilardi, natijada soat headr ostiga kirib ketardi
+  //     yoki sidebar noto'g'ri joyda "yopishib qolardi". Endi
+  //     ResizeObserver haqiqiy balandlikni kuzatib, CSS o'zgaruvchisiga
+  //     doimo to'g'ri qiymatni yozib turadi — ekran o'lchami, shrift
+  //     yuklanishi yoki kontent o'zgarishidan qat'i nazar.
+  // =========================================================
+  function syncHeaderHeights(){
+    const header = document.querySelector('header');
+    const controlBar = document.querySelector('.control-bar');
+    if(header){
+      document.documentElement.style.setProperty('--header-h', header.offsetHeight + 'px');
+    }
+    if(controlBar){
+      document.documentElement.style.setProperty('--control-h', controlBar.offsetHeight + 'px');
+    }
+  }
+  syncHeaderHeights();
+  window.addEventListener('load', syncHeaderHeights);
+  window.addEventListener('resize', syncHeaderHeights);
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(syncHeaderHeights).catch(() => {});
+  }
+  if(window.ResizeObserver){
+    const roHeader = document.querySelector('header');
+    const roControl = document.querySelector('.control-bar');
+    const ro = new ResizeObserver(() => syncHeaderHeights());
+    if(roHeader) ro.observe(roHeader);
+    if(roControl) ro.observe(roControl);
+  }
+
   // =========================================================
   // 0) MARKDOWN RENDER — AI/tarjima matnini xavfsiz HTML'ga aylantiradi.
   //    marked.js matnni parse qiladi, DOMPurify natijani tozalaydi (XSS'dan
@@ -1432,66 +1478,92 @@ import {
   }
   try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
 
-  // AI javobi: har bir so'z smooth paydo bo'ladi (typewriter emas — so'zma-so'z)
+  // Konteyner balandligini elastik (smooth) o'zgartirish uchun yordamchi.
+  // Matn so'z-baso'z QO'SHILGANDA konteyner balandligi ham shu bilan birga
+  // pastga qarab silliq o'sib boradi — oldindan to'liq balandlik "sakrab"
+  // chiqmaydi, chunki DOM'ga matn oldindan (invisible holda) qo'yilmaydi,
+  // faqat haqiqatan ko'rinadigan qismi kadr-baqadr qo'shiladi.
+  function findHeightBox(el){
+    // .ai-body/.chat-msg o'zi emas, uning "story-more-box" yoki "chat-log"
+    // konteyneri kengayishi kerak — lekin ko'pincha o'zi ham yetarli, chunki
+    // parentlar allaqachon avtomatik height'ga ega. Shu sabab elning o'zini
+    // animatsiya qilamiz — bu yetarli va boshqa elementlarga ta'sir qilmaydi.
+    return el;
+  }
+
+  // AI javobi: matn KADR-BAQADR DOM'ga qo'shiladi (oldindan to'liq matn
+  // yashirin holda qo'yilmaydi) — shu sabab konteyner balandligi ham matn
+  // bilan birga tabiiy ravishda, elastik o'sib boradi.
   async function revealWordsSmooth(el, text, opts = {}){
     pinScroll(1500);
     const safe = (text || '').toString();
     const asMd = !!opts.markdown;
     // Sekinroq — har so'z aniq ko'rinsin
     const delay = opts.delay != null ? opts.delay : 42;
+
+    // Balandlik o'tishi smooth bo'lishi uchun transition qo'yamiz
+    const box = findHeightBox(el);
+    box.style.transition = 'min-height .18s ease';
+    box.style.overflow = 'hidden';
+
     if(!safe.trim()){
       if(asMd) renderMd(el, safe);
       else el.textContent = safe;
+      box.style.overflow = '';
+      box.style.transition = '';
       return;
     }
 
-    // Parent fade-in butun matnni birga chiqarib yuboradi — o'chiramiz
     el.classList.remove('fade-in');
     el.style.opacity = '1';
     el.style.animation = 'none';
-
-    // Avval oddiy matn sifatida so'zma-so'z ko'rsatamiz, oxirida markdown formatlaymiz
-    const parts = safe.split(/(\s+)/);
     el.innerHTML = '';
     el.classList.add('word-reveal');
-    const frag = document.createDocumentFragment();
-    const spans = [];
-    for(const p of parts){
-      if(!p) continue;
-      if(/^\s+$/.test(p)){
-        if(p.includes('\n')){
-          frag.appendChild(document.createElement('br'));
-        }else{
-          frag.appendChild(document.createTextNode(p));
-        }
-      }else{
-        const span = document.createElement('span');
-        span.className = 'wr-word';
-        span.textContent = p;
-        span.style.opacity = '0';
-        span.style.display = 'inline';
-        frag.appendChild(span);
-        spans.push(span);
-      }
-    }
-    el.appendChild(frag);
 
-    // Har bir so'zni ketma-ket, sekin ko'rsatamiz
-    for(let i = 0; i < spans.length; i++){
-      const sp = spans[i];
-      sp.style.opacity = '0';
-      sp.style.animation = 'none';
-      void sp.offsetWidth; // reflow — animatsiya qayta ishlashi uchun
-      sp.style.animation = 'wordIn .32s ease forwards';
+    const parts = safe.split(/(\s+)/).filter(Boolean);
+    let currentH = el.getBoundingClientRect().height;
+    box.style.minHeight = currentH + 'px';
+
+    for(let i = 0; i < parts.length; i++){
+      const p = parts[i];
+      if(/^\s+$/.test(p)){
+        if(p.includes('\n')) el.appendChild(document.createElement('br'));
+        else el.appendChild(document.createTextNode(p));
+        continue;
+      }
+
+      const span = document.createElement('span');
+      span.className = 'wr-word';
+      span.textContent = p;
+      span.style.opacity = '0';
+      span.style.display = 'inline';
+      el.appendChild(span);
+
+      // Konteyner qanchalik o'sishi kerakligini o'lchaymiz va min-height ni
+      // shunga moslaymiz — CSS transition qolganini elastik silliqlaydi.
+      const newH = el.getBoundingClientRect().height;
+      if(newH > currentH){
+        currentH = newH;
+        box.style.minHeight = currentH + 'px';
+      }
+
+      void span.offsetWidth; // reflow — animatsiya qayta ishlashi uchun
+      span.style.animation = 'wordIn .32s ease forwards';
+
       if(i % 5 === 0) pinScroll(350);
       await new Promise(r => setTimeout(r, delay));
     }
 
     el.classList.remove('word-reveal');
-    // Markdown formatlash — matn allaqachon ko'rinib turgan
     if(asMd){
       renderMd(el, safe);
     }
+    // Yakunda min-height'ni bo'shatamiz — tabiiy oqim davom etadi
+    requestAnimationFrame(() => {
+      box.style.minHeight = '';
+      box.style.overflow = '';
+      box.style.transition = '';
+    });
     pinScroll(200);
   }
 
@@ -1546,23 +1618,70 @@ import {
   const statusLine = document.getElementById('statusLine');
   const tabs = document.querySelectorAll('.tab-btn');
 
-  const PREF_MODE = 'fmn-mode';
-  const PREF_TRANSLATE = 'fmn-translate';
-  const PREF_VISIBLE = 'fmn-visible';
-  const PREF_PAGE = 'fmn-gnews-page';
-  const PREF_READ = 'fmn-read';
-  const PREF_LATER = 'fmn-later';
-  const PREF_OPENED = 'fmn-opened';
+  // =========================================================
+  // FOYDALANUVCHI HOLATI — localStorage EMAS, Firestore (users/{uid}).
+  // Faqat "uid" (tasodifiy anonim identifikator) va "tema" localStorage'da
+  // qoladi — qolgan hammasi (mode/translate/visible/page, read/later/opened)
+  // shu bitta Firestore hujjatida saqlanadi. Sahifa ochilganda BIR MARTA
+  // o'qiladi (userState ichiga), keyin har o'zgarishda saveUserState() bilan
+  // Firestore'ga qayta yoziladi (debounce qilingan — har bosishda emas).
+  // =========================================================
+  const uid = getOrCreateUid();
+  let userState = {
+    mode: 'home',
+    translateOn: null, // null = hali tanlanmagan (birinchi tashrif)
+    visibleCount: {},  // { [mode]: number }
+    gnewsPage: {},      // { [mode]: number }
+    readIds: [],
+    laterItems: [],
+    openedItems: []
+  };
+  let userStateLoaded = false;
 
+  let _saveUserStateTimer = 0;
+  function persistUserState(){
+    clearTimeout(_saveUserStateTimer);
+    _saveUserStateTimer = setTimeout(() => {
+      saveUserState(uid, {
+        theme: document.documentElement.getAttribute('data-theme') || 'dark',
+        mode: userState.mode,
+        translateOn: !!userState.translateOn,
+        visibleCount: userState.visibleCount[currentMode] || INITIAL_FEED,
+        gnewsPage: userState.gnewsPage[currentMode] || 1,
+        readIds: userState.readIds.slice(0, 500),
+        laterItems: userState.laterItems.slice(0, 80).map(x => JSON.stringify(x)),
+        openedItems: userState.openedItems.slice(0, 40).map(x => JSON.stringify(x))
+      }).catch(e => console.warn('userState saqlanmadi:', e.message));
+    }, 400);
+  }
 
-  function readList(key){
-    try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
+  async function loadUserStateFromFirestore(){
+    try{
+      const data = await getUserState(uid);
+      if(data){
+        if(data.theme === 'light' || data.theme === 'dark'){
+          document.documentElement.setAttribute('data-theme', data.theme);
+          try{ localStorage.setItem('fmn-theme', data.theme); }catch(_){}
+        }
+        userState.readIds = Array.isArray(data.readIds) ? data.readIds : [];
+        userState.laterItems = (Array.isArray(data.laterItems) ? data.laterItems : [])
+          .map(s => { try{ return JSON.parse(s); }catch(_){ return null; } })
+          .filter(Boolean);
+        userState.openedItems = (Array.isArray(data.openedItems) ? data.openedItems : [])
+          .map(s => { try{ return JSON.parse(s); }catch(_){ return null; } })
+          .filter(Boolean);
+        if(data.mode) userState.mode = data.mode;
+        if(typeof data.translateOn === 'boolean') userState.translateOn = data.translateOn;
+        if(Number.isFinite(data.visibleCount)) userState.visibleCount[data.mode || 'home'] = data.visibleCount;
+        if(Number.isFinite(data.gnewsPage)) userState.gnewsPage[data.mode || 'home'] = data.gnewsPage;
+      }
+    }catch(e){
+      console.warn('userState yuklanmadi:', e.message);
+    }
+    userStateLoaded = true;
   }
-  function writeList(key, arr){
-    const max = key === PREF_LATER ? 80 : 40;
-    try{ localStorage.setItem(key, JSON.stringify(arr.slice(0, max))); }catch(e){}
-  }
-  function isRead(id){ return readList(PREF_READ).includes(id); }
+
+  function isRead(id){ return userState.readIds.includes(id); }
   // Saqlanganlar: eski format (faqat id string) va yangi format ({id, title, ...})
   function normalizeSavedList(raw){
     const arr = Array.isArray(raw) ? raw : [];
@@ -1573,19 +1692,21 @@ import {
     }).filter(Boolean);
   }
   function getSavedList(){
-    return normalizeSavedList(readList(PREF_LATER));
+    return normalizeSavedList(userState.laterItems);
   }
   function isLater(id){
     return getSavedList().some(x => x.id === id);
   }
   function markRead(id){
     if(!id) return;
-    const ids = readList(PREF_READ);
-    if(!ids.includes(id)) writeList(PREF_READ, ids.concat(id));
+    if(!userState.readIds.includes(id)){
+      userState.readIds = userState.readIds.concat(id).slice(-500);
+      persistUserState();
+    }
   }
   function markOpened(a){
     if(!a || !a.id) return;
-    const items = readList(PREF_OPENED).filter(x => x && x.id !== a.id);
+    const items = userState.openedItems.filter(x => x && x.id !== a.id);
     const uz = articleUz(a);
     const titleUz = (uz && uz.title) ? uz.title : '';
     items.unshift({
@@ -1593,8 +1714,9 @@ import {
       title: a.title || 'Sarlavhasiz',
       titleUz: titleUz || undefined
     });
-    writeList(PREF_OPENED, items);
+    userState.openedItems = items.slice(0, 40);
     markRead(a.id);
+    persistUserState();
   }
   function snapshotArticle(a){
     if(!a || !a.id) return null;
@@ -1620,7 +1742,8 @@ import {
     const idx = items.findIndex(x => x.id === id);
     if(idx >= 0){
       items.splice(idx, 1);
-      writeList(PREF_LATER, items);
+      userState.laterItems = items;
+      persistUserState();
       return false; // endi saqlanmagan
     }
     const live = articleOpt
@@ -1628,7 +1751,8 @@ import {
       || null;
     const snap = snapshotArticle(live) || { id, title: '', savedAt: new Date().toISOString() };
     items.unshift(snap);
-    writeList(PREF_LATER, items);
+    userState.laterItems = items.slice(0, 80);
+    persistUserState();
     return true; // saqlandi
   }
   const INITIAL_FEED = 7;
@@ -1639,28 +1763,24 @@ import {
   let gnewsPage = 1;
 
   function savePrefs(){
-    try{
-      localStorage.setItem(PREF_MODE, currentMode);
-      localStorage.setItem(PREF_TRANSLATE, translateModeOn ? '1' : '0');
-      localStorage.setItem(PREF_VISIBLE + '-' + currentMode, String(visibleCount));
-      localStorage.setItem(PREF_PAGE + '-' + currentMode, String(gnewsPage));
-    }catch(e){}
+    userState.mode = currentMode;
+    userState.translateOn = translateModeOn;
+    userState.visibleCount[currentMode] = visibleCount;
+    userState.gnewsPage[currentMode] = gnewsPage;
+    persistUserState();
   }
 
   function loadPrefs(){
-    try{
-      const m = localStorage.getItem(PREF_MODE);
-      // Eski global/local → birlashtirilgan home
-      if(m === 'global' || m === 'local' || m === 'home') currentMode = 'home';
-      else if(m === 'history' || m === 'saved') currentMode = m;
-      // Birinchi ochilishda UZ default yoqiladi; keyin foydalanuvchi tanlovi saqlanadi
-      const tr = localStorage.getItem(PREF_TRANSLATE);
-      translateModeOn = tr === null ? true : tr === '1';
-      const vis = parseInt(localStorage.getItem(PREF_VISIBLE + '-' + currentMode) || '', 10);
-      visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
-      const pg = parseInt(localStorage.getItem(PREF_PAGE + '-' + currentMode) || '', 10);
-      gnewsPage = pg >= 1 ? pg : 1;
-    }catch(e){}
+    const m = userState.mode;
+    // Eski global/local → birlashtirilgan home
+    if(m === 'global' || m === 'local' || m === 'home') currentMode = 'home';
+    else if(m === 'history' || m === 'saved') currentMode = m;
+    // Birinchi ochilishda UZ default yoqiladi; keyin foydalanuvchi tanlovi saqlanadi
+    translateModeOn = userState.translateOn === null ? true : !!userState.translateOn;
+    const vis = userState.visibleCount[currentMode];
+    visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
+    const pg = userState.gnewsPage[currentMode];
+    gnewsPage = pg >= 1 ? pg : 1;
   }
 
   let currentMode = 'home';
@@ -1722,15 +1842,10 @@ import {
       btn.classList.add('active');
       currentMode = btn.dataset.mode;
       setBodyMode(currentMode);
-      try{
-        const vis = parseInt(localStorage.getItem(PREF_VISIBLE + '-' + currentMode) || '', 10);
-        visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
-        const pg = parseInt(localStorage.getItem(PREF_PAGE + '-' + currentMode) || '', 10);
-        gnewsPage = pg >= 1 ? pg : 1;
-      }catch(e){
-        visibleCount = INITIAL_FEED;
-        gnewsPage = 1;
-      }
+      const vis = userState.visibleCount[currentMode];
+      visibleCount = vis >= INITIAL_FEED ? vis : INITIAL_FEED;
+      const pg = userState.gnewsPage[currentMode];
+      gnewsPage = pg >= 1 ? pg : 1;
       savePrefs();
       if(currentMode === 'history'){
         feedLabel.textContent = "TARIX — KUNLARNI TANLA";
@@ -2196,7 +2311,7 @@ import {
         </article>`;
     }).join('') + (noMoreBtn ? '' : `<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn" title="Yana 5 ta">${MORE_BTN_HTML}</button></div>`);
 
-    // Sidebar "Oxirgi ochilganlar" — localStorage'dagi oxirgi ochilganlar.
+    // Sidebar "Oxirgi ochilganlar" — Firestore'dagi (userState) oxirgi ochilganlar.
     // Bosilsa story'ga scroll qiladi — tashqi link emas, ichki navigatsiya.
     renderTrending(articles);
 
@@ -2257,7 +2372,7 @@ import {
       return;
     }
 
-    // localStorage snapshot + Firestore'dan boyitish (rasm, tarjima, sana)
+    // Firestore (userState) snapshot + Firestore article'dan boyitish (rasm, tarjima, sana)
     const enriched = [];
     for(const item of saved){
       let a = {
@@ -2311,7 +2426,7 @@ import {
 
   // Sidebar "Oxirgi ochilganlar": har doim o'zbekcha sarlavha.
   // Avval eng yaxshi mavjud matn bilan chizamiz, keyin tarjima yo'qlarini
-  // API orqali (jumla-jumla) uzbekchaga o'tkazib DOM + localStorage yangilaymiz.
+  // API orqali (jumla-jumla) uzbekchaga o'tkazib DOM + Firestore (userState) yangilaymiz.
   function looksNonUzbek(text){
     const t = String(text || '').trim();
     if(!t) return true;
@@ -2342,7 +2457,7 @@ import {
     const list = document.getElementById('trending-list');
     const box = document.getElementById('trending');
     if(!list) return;
-    const opened = readList(PREF_OPENED);
+    const opened = userState.openedItems;
     const savedItems = getSavedList();
     const byId = {};
     (articles || []).forEach(a => { if(a.id) byId[a.id] = a; });
@@ -2435,7 +2550,7 @@ import {
       return;
     }
 
-    const opened = readList(PREF_OPENED);
+    const opened = userState.openedItems;
     let openedChanged = false;
 
     need.forEach((p, j) => {
@@ -2450,7 +2565,7 @@ import {
         link.classList.add('fade-in');
       }
 
-      // localStorage — keyingi safar darhol o'zbekcha chiqsin
+      // Firestore — keyingi safar darhol o'zbekcha chiqsin
       const idx = opened.findIndex(x => x && x.id === p.id);
       if(idx >= 0){
         opened[idx] = { ...opened[idx], titleUz, title: opened[idx].title || p.rawTitle };
@@ -2458,7 +2573,7 @@ import {
       }
     });
 
-    if(openedChanged) writeList(PREF_OPENED, opened);
+    if(openedChanged) persistUserState();
   }
 
   function bindBackButton(){
@@ -2652,11 +2767,11 @@ import {
         if(tTitle){
           a.uzText = packText(tTitle, tDesc || '');
           try{
-            const opened = readList(PREF_OPENED);
+            const opened = userState.openedItems;
             const oi = opened.findIndex(x => x && x.id === a.id);
             if(oi >= 0){
               opened[oi] = { ...opened[oi], titleUz: tTitle, title: opened[oi].title || a.title };
-              writeList(PREF_OPENED, opened);
+              persistUserState();
               renderTrending(currentArticles);
             }
           }catch(_){}
@@ -2709,11 +2824,11 @@ import {
       }
       // Sidebar "Oxirgi ochilganlar" uchun o'zbekcha sarlavhani saqlab qo'yamiz
       try{
-        const opened = readList(PREF_OPENED);
+        const opened = userState.openedItems;
         const oi = opened.findIndex(x => x && x.id === a.id);
         if(oi >= 0 && titleUz){
           opened[oi] = { ...opened[oi], titleUz, title: opened[oi].title || orig.title };
-          writeList(PREF_OPENED, opened);
+          persistUserState();
           renderTrending(currentArticles);
         }
       }catch(_){}
@@ -2816,7 +2931,7 @@ ${explainBlock}
 === KONTEKST TUGADI ===
 
 QATIY QOIDALAR:
-1) FAQAT yuqoridagi kontekst va suhbat tarixidagi faktlarga tayan. Bilmagan narsangni O'YLAB TOPMA (sana, raqam, ism, sabab).
+1) FAQAT yuqoridagi kontekst, (agar berilgan bo'lsa) jonli qidiruv natijalari va suhbat tarixidagi faktlarga tayan. Bilmagan narsangni O'YLAB TOPMA (sana, raqam, ism, sabab).
 2) Agar kontekstda yo'q bo'lsa — ochiq ayt: "Bu haqda maqolada aniq ma'lumot yo'q" yoki "Aniq sanani bilmayman".
 3) To'liq sarlavhani yoki tavsifni so'zma-so'z takrorlama.
 4) "Qanday yordam bera olaman?" deb yozma. Umumiy chatbot ohangi taqiqlanadi.
@@ -2824,7 +2939,9 @@ QATIY QOIDALAR:
    YAXSHI: "Salom! Anthropic va Trump ma'muriyati haqidagi bu xabar qiziqtirdimi?"
    YOMON: "Salom! ... Qanday yordam bera olaman?"
 6) Sana so'ralsa — faqat kontekstdagi "E'lon qilingan sana"ni ayt. Yo'q bo'lsa — bilmasligingni ayt, o'ylab topma.
-7) Javoblaring o'zbekcha, qisqa va aniq. Kerak bo'lsa keyin chuqurlash.`;
+7) Javoblaring o'zbekcha, qisqa va aniq. Kerak bo'lsa keyin chuqurlash.
+8) MAVZU CHUQURLIGI: siz shu sohaning tajribali tahlilchisisiz — sayoz, umumiy gaplar bilan cheklanma. Foydalanuvchi texnik yoki chuqur savol bersa (masalan, model arxitekturasi, kompaniya strategiyasi, texnik tafsilotlar haqida), aniq, mazmunli, ekspert darajadagi javob ber — lekin baribir faqat ISHONCHLI kontekst/qidiruv natijalariga asoslanib, spekulyatsiyani aniq spekulyatsiya deb belgilab.
+9) Agar mavzu Claude, Anthropic yoki boshqa AI modellari haqida bo'lsa va sizga "JONLI QIDIRUV NATIJALARI" bloki berilgan bo'lsa — shu ma'lumotni o'zingdagi eski xotiradan USTUN qo'y, chunki AI sohasi tez o'zgaradi va eski ma'lumot noto'g'ri bo'lishi mumkin.`;
   }
 
   async function toggleDiscuss(idx){
@@ -3114,41 +3231,50 @@ QATIY QOIDALAR:
       const now = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', now);
       try{ localStorage.setItem('fmn-theme', now); }catch(e){}
+      persistUserState();
       applyThemeLabel();
     });
   }
 
-  loadPrefs();
-  setBodyMode(currentMode);
-  tabs.forEach(b => {
-    b.classList.toggle('active', b.dataset.mode === currentMode);
-  });
-  if(translateModeOn){
-    translateBtn.classList.add('active');
-    if(translateLabel) translateLabel.textContent = 'ORIG';
-    translateBtn.setAttribute('title', 'Original tilga qaytarish');
-  }
-  // Birinchi tashrif: UZ default — pref ni yozib qo'yamiz
-  try{
-    if(localStorage.getItem(PREF_TRANSLATE) === null){
-      localStorage.setItem(PREF_TRANSLATE, '1');
+  // Ilova Firestore'dagi foydalanuvchi holatini KUTIB oladi, keyin
+  // sozlamalarni tiklaydi va feedni yuklaydi — localStorage'dan sinxron
+  // o'qish endi yo'q, shuning uchun bu qadam async.
+  (async function initApp(){
+    await loadUserStateFromFirestore();
+
+    loadPrefs();
+    setBodyMode(currentMode);
+    tabs.forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === currentMode);
+    });
+    if(translateModeOn){
+      translateBtn.classList.add('active');
+      if(translateLabel) translateLabel.textContent = 'ORIG';
+      translateBtn.setAttribute('title', 'Original tilga qaytarish');
+    }
+    // Birinchi tashrif: UZ default — holatni yozib qo'yamiz
+    if(userState.translateOn === null){
+      userState.translateOn = true;
       translateModeOn = true;
       translateBtn.classList.add('active');
       if(translateLabel) translateLabel.textContent = 'ORIG';
+      persistUserState();
     }
-  }catch(e){}
 
-  if(currentMode === 'history'){
-    feedLabel.textContent = "TARIX — KUNLARNI TANLA";
-    renderDayList();
-  }else if(currentMode === 'saved'){
-    feedLabel.textContent = "SAQLANGANLAR";
-    loadSavedFeed();
-  }else{
-    currentMode = 'home';
-    feedLabel.textContent = "Bugungi to'plam";
-    loadFeed();
-  }
+    if(currentMode === 'history'){
+      feedLabel.textContent = "TARIX — KUNLARNI TANLA";
+      renderDayList();
+    }else if(currentMode === 'saved'){
+      feedLabel.textContent = "SAQLANGANLAR";
+      loadSavedFeed();
+    }else{
+      currentMode = 'home';
+      feedLabel.textContent = "Bugungi to'plam";
+      loadFeed();
+    }
+
+    scheduleRefresh();
+  })();
 
   document.addEventListener('keydown', (e) => {
     const tag = (e.target && e.target.tagName) || '';
@@ -3165,8 +3291,6 @@ QATIY QOIDALAR:
     const idx = Number(card.dataset.idx);
     if(!Number.isNaN(idx)) toggleCardMore(idx);
   });
-
-  scheduleRefresh();
 })();
 </script>
 
