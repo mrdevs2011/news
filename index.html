@@ -14,6 +14,7 @@
     --ink-dim:#8a8a7d;
     --wire-red:#c23b2e;
     --wire-amber:#d9a441;
+    --wire-green:#5a9b6f;
     --line:#2a2a24;
     --mono: 'JetBrains Mono', monospace;
     --serif: 'Newsreader', serif;
@@ -49,9 +50,14 @@
     letter-spacing:0.08em;
     text-transform:uppercase;
     margin-bottom:14px;
+    flex-wrap:wrap;
+    gap:6px;
   }
 
   #clock{color:var(--wire-amber); font-weight:700;}
+  #aiStatus{color:var(--ink-dim);}
+  #aiStatus.ok{color:var(--wire-green);}
+  #aiStatus.bad{color:var(--wire-red);}
 
   .masthead-title{
     display:flex;
@@ -172,7 +178,7 @@
   .story h2 a{color:var(--ink); text-decoration:none;}
   .story h2 a:hover{color:var(--wire-amber);}
 
-  .story p{
+  .story p.desc{
     font-size:14.5px;
     line-height:1.55;
     color:#c9c8bd;
@@ -187,6 +193,115 @@
     text-transform:uppercase;
     letter-spacing:.04em;
   }
+
+  /* ---- AI block ---- */
+  .ai-toolbar{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .ai-btn{
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    padding:6px 10px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .ai-btn:hover{border-color:var(--wire-amber); color:var(--wire-amber);}
+  .ai-btn:disabled{opacity:.4; cursor:wait;}
+
+  .ai-panel{
+    margin-top:12px;
+    border-left:2px solid var(--wire-amber);
+    padding:10px 14px;
+    background:var(--paper-raised);
+    display:none;
+  }
+  .ai-panel.show{display:block;}
+  .ai-panel .ai-tag{
+    font-family:var(--mono);
+    font-size:9.5px;
+    color:var(--wire-amber);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    margin-bottom:6px;
+    display:flex;
+    justify-content:space-between;
+  }
+  .ai-panel .ai-body{
+    font-family:var(--serif);
+    font-size:14.5px;
+    line-height:1.6;
+    color:var(--ink);
+    white-space:pre-wrap;
+  }
+
+  .chat-panel{
+    margin-top:10px;
+    display:none;
+  }
+  .chat-panel.show{display:block;}
+  .chat-log{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-bottom:8px;
+    max-height:340px;
+    overflow-y:auto;
+  }
+  .chat-msg{
+    font-family:var(--serif);
+    font-size:13.5px;
+    line-height:1.5;
+    padding:8px 10px;
+    border-radius:2px;
+  }
+  .chat-msg.user{
+    background:var(--paper-raised);
+    color:var(--ink);
+    align-self:flex-end;
+    max-width:85%;
+    border:1px solid var(--line);
+  }
+  .chat-msg.ai{
+    background:transparent;
+    color:#c9c8bd;
+    border-left:2px solid var(--wire-green);
+    padding-left:10px;
+    white-space:pre-wrap;
+  }
+  .chat-input-row{
+    display:flex;
+    gap:6px;
+  }
+  .chat-input-row input{
+    flex:1;
+    background:var(--paper);
+    border:1px solid var(--line);
+    color:var(--ink);
+    padding:8px 10px;
+    font-family:var(--serif);
+    font-size:13.5px;
+  }
+  .chat-input-row input:focus{outline:1px solid var(--wire-amber);}
+  .chat-input-row button{
+    background:var(--wire-amber);
+    border:none;
+    color:#0d0d0c;
+    padding:0 14px;
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:11px;
+    cursor:pointer;
+    text-transform:uppercase;
+  }
+  .chat-input-row button:disabled{opacity:.5; cursor:wait;}
 
   /* ===== LOADING / EMPTY ===== */
   .placeholder{
@@ -240,6 +355,7 @@
 <header>
   <div class="masthead-top">
     <span>ESTABLISHED TODAY // AUTO-REFRESH: 30 MIN</span>
+    <span id="aiStatus">AI: TEKSHIRILMOQDA...</span>
     <span id="clock">--:--:--</span>
   </div>
   <div class="masthead-title">
@@ -262,15 +378,198 @@
   </div>
 </main>
 
-<footer>WIRE TERMINAL — GNews API orqali ishlaydi — bratan, key'siz bu narsa jim turadi</footer>
+<footer>WIRE TERMINAL — GNews + AI (Groq → OpenRouter → Gemini) — key'lar config.local.js va gnews.localkey.js ichida</footer>
+
+<!--
+  Bratan: key'laring shu yerda emas.
+  AI key'lar (groq/openrouter/gemini) -> config.local.js
+  GNews key -> gnews.localkey.js
+  Ikkalasi ham HTML bilan bir papkada turishi shart, va hech qachon git'ga/hostingga tushmasin.
+-->
+<script src="config.local.js"></script>
+<script src="gnews.localkey.js"></script>
 
 <script>
 (function(){
-  // Bratan, faqat LOCAL foydalanish uchun hardcoded qilindi.
-  // Bu faylni hech qachon GitHub'ga, hostingga yoki boshqa public joyga qo'yma —
-  // key ochiq ko'rinadi va oqib ketadi.
-  const API_KEY = 'YOUR_API_KEY_HERE';
+  // =========================================================
+  // 0) CONFIG / KEY POOLS
+  // =========================================================
+  const CFG = window.WIRE_KEYS || {};
+  const GNEWS_KEY = window.GNEWS_KEY || '';
+  const KEY_POOLS = {
+    groq: Array.isArray(CFG.groq) ? CFG.groq.filter(Boolean) : [],
+    openrouter: Array.isArray(CFG.openrouter) ? CFG.openrouter.filter(Boolean) : [],
+    gemini: Array.isArray(CFG.gemini) ? CFG.gemini.filter(Boolean) : []
+  };
+  // fallback tartibi — shu ketma-ketlikda sinaladi
+  const PROVIDER_ORDER = ['groq', 'openrouter', 'gemini'];
 
+  // har provider uchun round-robin pointer
+  const keyCursor = { groq: 0, openrouter: 0, gemini: 0 };
+  // ishlamay qolgan (dead) key'larni shu turda belgilaymiz — session davomida qayta sinamaymiz
+  const deadKeys = { groq: new Set(), openrouter: new Set(), gemini: new Set() };
+
+  function nextKey(provider){
+    const pool = KEY_POOLS[provider];
+    if(!pool.length) return null;
+    const dead = deadKeys[provider];
+    if(dead.size >= pool.length) return null; // hammasi o'lgan
+    for(let i=0; i<pool.length; i++){
+      const idx = keyCursor[provider] % pool.length;
+      keyCursor[provider]++;
+      if(!dead.has(idx)) return { key: pool[idx], idx };
+    }
+    return null;
+  }
+
+  function markDead(provider, idx){
+    deadKeys[provider].add(idx);
+  }
+
+  function poolsExhausted(){
+    return PROVIDER_ORDER.every(p => {
+      const pool = KEY_POOLS[p];
+      return pool.length === 0 || deadKeys[p].size >= pool.length;
+    });
+  }
+
+  // =========================================================
+  // 1) AI CALL LAYER — provider-agnostic chat completion
+  //    Fallback zanjiri: groq -> openrouter -> gemini
+  //    Har provider ichida key'lar round-robin bilan sinaladi
+  // =========================================================
+  async function callGroq(key, messages){
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature: 0.4
+      })
+    });
+    if(!res.ok){
+      const body = await res.json().catch(()=>({}));
+      const err = new Error(body.error?.message || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() || '';
+  }
+
+  async function callOpenRouter(key, messages){
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
+        messages,
+        temperature: 0.4
+      })
+    });
+    if(!res.ok){
+      const body = await res.json().catch(()=>({}));
+      const err = new Error(body.error?.message || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() || '';
+  }
+
+  async function callGemini(key, messages){
+    // Gemini API tuzilishi boshqacha — system+user'ni birlashtiramiz
+    const sysMsg = messages.find(m => m.role === 'system');
+    const convo = messages.filter(m => m.role !== 'system');
+    const contents = convo.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+    const body = {
+      contents,
+      ...(sysMsg ? { systemInstruction: { parts: [{ text: sysMsg.content }] } } : {})
+    };
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if(!res.ok){
+      const errBody = await res.json().catch(()=>({}));
+      const err = new Error(errBody.error?.message || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+  }
+
+  const CALLERS = { groq: callGroq, openrouter: callOpenRouter, gemini: callGemini };
+
+  // status bar'ga hozir qaysi provider ishlatilayotganini chiqaramiz
+  function setAiStatus(text, cls){
+    const el = document.getElementById('aiStatus');
+    el.textContent = 'AI: ' + text;
+    el.className = cls || '';
+  }
+
+  // asosiy funksiya: fallback zanjiri bo'ylab AI'dan javob so'raydi
+  async function aiChat(messages){
+    if(poolsExhausted()){
+      throw new Error('Barcha AI key\'lar (Groq/OpenRouter/Gemini) tugadi yoki ishlamayapti.');
+    }
+    let lastErr = null;
+    for(const provider of PROVIDER_ORDER){
+      const pool = KEY_POOLS[provider];
+      if(!pool.length) continue;
+      // shu provider ichidagi key'larni birma-bir sinaymiz
+      let attempts = 0;
+      const maxAttempts = pool.length;
+      while(attempts < maxAttempts){
+        const picked = nextKey(provider);
+        if(!picked) break; // bu provider'ning hammasi dead
+        attempts++;
+        try{
+          setAiStatus(provider.toUpperCase() + ' bilan ishlamoqda...', '');
+          const result = await CALLERS[provider](picked.key, messages);
+          setAiStatus(provider.toUpperCase() + ' — ISHLAYAPTI', 'ok');
+          return result;
+        }catch(err){
+          console.warn(`[${provider}] key#${picked.idx} xato:`, err.message);
+          // 401/403 = key yaroqsiz, 429 = limit tugagan — ikkalasida ham dead deb belgilaymiz
+          if(err.status === 401 || err.status === 403 || err.status === 429){
+            markDead(provider, picked.idx);
+          }
+          lastErr = err;
+          continue; // shu provider ichida keyingi key'ga o'tamiz
+        }
+      }
+      // shu provider'ning key pool'i butunlay tugadi -> keyingi provider'ga o'tamiz
+    }
+    setAiStatus('HAMMASI TUGADI', 'bad');
+    throw lastErr || new Error('AI javob bermadi — barcha provider/key sinaldi.');
+  }
+
+  // ilk holatda AI mavjudligini ko'rsatib qo'yamiz
+  (function initAiStatus(){
+    const total = KEY_POOLS.groq.length + KEY_POOLS.openrouter.length + KEY_POOLS.gemini.length;
+    if(total === 0){
+      setAiStatus('KEY YO\'Q (config.local.js)', 'bad');
+    } else {
+      setAiStatus(`TAYYOR (${KEY_POOLS.groq.length}G/${KEY_POOLS.openrouter.length}OR/${KEY_POOLS.gemini.length}GM)`, '');
+    }
+  })();
+
+  // =========================================================
+  // 2) GNEWS FEED
+  // =========================================================
   const feedEl = document.getElementById('feed');
   const feedLabel = document.getElementById('feedLabel');
   const feedCount = document.getElementById('feedCount');
@@ -279,8 +578,8 @@
 
   let currentMode = 'global';
   let refreshTimer = null;
+  let currentArticles = []; // hozirgi feed'dagi maqolalar, AI context uchun
 
-  // ---- clock ----
   function tickClock(){
     const now = new Date();
     document.getElementById('clock').textContent = now.toLocaleTimeString('uz-UZ', {hour12:false});
@@ -288,7 +587,6 @@
   tickClock();
   setInterval(tickClock, 1000);
 
-  // ---- tabs ----
   tabs.forEach(btn => {
     btn.addEventListener('click', () => {
       tabs.forEach(b => b.classList.remove('active'));
@@ -299,10 +597,9 @@
     });
   });
 
-  // ---- fetch logic ----
   async function loadFeed(){
-    if(!API_KEY || API_KEY === 'YOUR_API_KEY_HERE'){
-      feedEl.innerHTML = '<div class="error-box">KEY QO\'YILMAGAN — script ichidagi API_KEY o\'zgaruvchisiga o\'z GNews key\'ingni yoz.</div>';
+    if(!GNEWS_KEY){
+      feedEl.innerHTML = '<div class="error-box">GNEWS KEY YO\'Q — gnews.localkey.js ichidagi GNEWS_KEY o\'zgaruvchisiga key qo\'y.</div>';
       statusLine.textContent = 'KEY YO\'Q';
       return;
     }
@@ -312,9 +609,9 @@
 
     let url;
     if(currentMode === 'global'){
-      url = `https://gnews.io/api/v4/top-headlines?lang=en&max=15&apikey=${encodeURIComponent(API_KEY)}`;
+      url = `https://gnews.io/api/v4/top-headlines?lang=en&max=15&apikey=${encodeURIComponent(GNEWS_KEY)}`;
     } else {
-      url = `https://gnews.io/api/v4/top-headlines?country=uz&lang=ru&max=15&apikey=${encodeURIComponent(API_KEY)}`;
+      url = `https://gnews.io/api/v4/top-headlines?country=uz&lang=ru&max=15&apikey=${encodeURIComponent(GNEWS_KEY)}`;
     }
 
     try{
@@ -324,7 +621,8 @@
         throw new Error(`HTTP ${res.status}: ${errBody.errors ? errBody.errors.join(', ') : res.statusText}`);
       }
       const data = await res.json();
-      renderFeed(data.articles || []);
+      currentArticles = data.articles || [];
+      renderFeed(currentArticles);
       statusLine.textContent = 'LIVE — OXIRGI YANGILANISH: ' + new Date().toLocaleTimeString('uz-UZ',{hour12:false});
     } catch(err){
       console.error(err);
@@ -349,15 +647,52 @@
       const date = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
       const desc = a.description ? escapeHtml(a.description) : '';
       return `
-        <article class="story">
+        <article class="story" data-idx="${i}">
           <div class="story-index">${num}<span class="src">${escapeHtml(src)}</span></div>
           <div>
             <h2><a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
-            <p>${desc}</p>
+            <p class="desc">${desc}</p>
             <div class="meta">${date}</div>
+
+            <div class="ai-toolbar">
+              <button class="ai-btn" data-action="explain" data-idx="${i}">🇺🇿 Tarjima + Tushuntirish</button>
+              <button class="ai-btn" data-action="discuss" data-idx="${i}">💬 Muhokama qilish</button>
+            </div>
+
+            <div class="ai-panel" id="ai-panel-${i}">
+              <div class="ai-tag"><span>AI TUSHUNTIRISHI</span><span></span></div>
+              <div class="ai-body" id="ai-body-${i}"></div>
+            </div>
+
+            <div class="chat-panel" id="chat-panel-${i}">
+              <div class="chat-log" id="chat-log-${i}"></div>
+              <div class="chat-input-row">
+                <input type="text" id="chat-input-${i}" placeholder="Bu yangilik haqida savol yoz...">
+                <button data-action="send" data-idx="${i}">YUBOR</button>
+              </div>
+            </div>
           </div>
         </article>`;
     }).join('');
+
+    // event delegation o'rniga to'g'ridan-to'g'ri bog'laymiz — oddiy va tushunarli
+    feedEl.querySelectorAll('[data-action="explain"]').forEach(btn => {
+      btn.addEventListener('click', () => handleExplain(Number(btn.dataset.idx), btn));
+    });
+    feedEl.querySelectorAll('[data-action="discuss"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleDiscuss(Number(btn.dataset.idx)));
+    });
+    feedEl.querySelectorAll('[data-action="send"]').forEach(btn => {
+      btn.addEventListener('click', () => handleSend(Number(btn.dataset.idx)));
+    });
+    feedEl.querySelectorAll('[id^="chat-input-"]').forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter'){
+          const idx = Number(input.id.replace('chat-input-',''));
+          handleSend(idx);
+        }
+      });
+    });
   }
 
   function escapeHtml(str){
@@ -366,13 +701,107 @@
     return div.innerHTML;
   }
 
-  // ---- auto refresh every 30 min ----
+  // =========================================================
+  // 3) "TARJIMA + TUSHUNTIRISH" — bitta AI chaqiruv, natija panelga chiqadi
+  // =========================================================
+  async function handleExplain(idx, btn){
+    const a = currentArticles[idx];
+    if(!a) return;
+    const panel = document.getElementById(`ai-panel-${idx}`);
+    const body = document.getElementById(`ai-body-${idx}`);
+
+    btn.disabled = true;
+    btn.textContent = '⏳ ISHLANMOQDA...';
+    panel.classList.add('show');
+    body.textContent = 'AI javob tayyorlayapti...';
+
+    const sys = `Sen tajribali xalqaro yangiliklar sharhlovchisisan. Foydalanuvchiga ingliz/rus tilidagi yangilikni O'ZBEK TILIDA quyidagi tartibda taqdim et:
+1) Sarlavha tarjimasi (qalin emas, oddiy matn)
+2) 3-5 gapli batafsil tushuntirish: nima bo'ldi, nega muhim, fon (context)
+3) Agar tegishli bo'lsa — bu voqea nimaga olib kelishi mumkinligi haqida qisqa fikr
+Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
+
+    const userMsg = `Sarlavha: ${a.title || ''}\nTavsif: ${a.description || ''}\nManba: ${a.source?.name || ''}`;
+
+    try{
+      const result = await aiChat([
+        { role: 'system', content: sys },
+        { role: 'user', content: userMsg }
+      ]);
+      body.textContent = result || 'AI bo\'sh javob qaytardi.';
+      btn.textContent = '🇺🇿 Qayta tarjima qilish';
+    }catch(err){
+      body.textContent = 'XATOLIK: ' + err.message;
+      btn.textContent = '🇺🇿 Tarjima + Tushuntirish';
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  // =========================================================
+  // 4) "MUHOKAMA QILISH" — story bo'yicha erkin chat, tarix saqlanadi
+  // =========================================================
+  const chatHistories = {}; // idx -> [{role, content}]
+
+  function toggleDiscuss(idx){
+    const panel = document.getElementById(`chat-panel-${idx}`);
+    panel.classList.toggle('show');
+    if(panel.classList.contains('show') && !chatHistories[idx]){
+      const a = currentArticles[idx];
+      chatHistories[idx] = [
+        { role: 'system', content: `Sen yangiliklar bo'yicha muhokama qiladigan bilimdon suhbatdoshsan. Mavzu: "${a.title || ''}". Tavsif: "${a.description || ''}". Foydalanuvchi bilan o'zbek tilida, tabiiy va batafsil suhbatlash. Savollariga chuqur, faktlarga asoslangan javob ber.` }
+      ];
+    }
+  }
+
+  async function handleSend(idx){
+    const input = document.getElementById(`chat-input-${idx}`);
+    const log = document.getElementById(`chat-log-${idx}`);
+    const btn = document.querySelector(`[data-action="send"][data-idx="${idx}"]`);
+    const text = input.value.trim();
+    if(!text) return;
+
+    if(!chatHistories[idx]) toggleDiscuss(idx);
+
+    appendChatMsg(log, 'user', text);
+    chatHistories[idx].push({ role: 'user', content: text });
+    input.value = '';
+    input.disabled = true;
+    btn.disabled = true;
+
+    const thinkingEl = appendChatMsg(log, 'ai', 'AI yozmoqda...');
+
+    try{
+      const result = await aiChat(chatHistories[idx]);
+      thinkingEl.textContent = result;
+      chatHistories[idx].push({ role: 'assistant', content: result });
+    }catch(err){
+      thinkingEl.textContent = 'XATOLIK: ' + err.message;
+    }finally{
+      input.disabled = false;
+      btn.disabled = false;
+      input.focus();
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  function appendChatMsg(log, role, text){
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + role;
+    div.textContent = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    return div;
+  }
+
+  // =========================================================
+  // 5) AUTO REFRESH + INIT
+  // =========================================================
   function scheduleRefresh(){
     if(refreshTimer) clearInterval(refreshTimer);
     refreshTimer = setInterval(loadFeed, 30 * 60 * 1000);
   }
 
-  // ---- init ----
   loadFeed();
   scheduleRefresh();
 })();
