@@ -308,6 +308,16 @@
     text-transform:uppercase;
     color:var(--ink-dim);
     margin-bottom:16px;
+    overflow:hidden;
+    position:relative;
+  }
+  .story.hero .hero-media img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+    position:absolute;
+    inset:0;
   }
   .story.hero .story-index{
     display:flex;
@@ -1095,7 +1105,12 @@ import {
       const date = a.publishedAt ? new Date(a.publishedAt).toLocaleString('uz-UZ') : '';
       const desc = a.description ? escapeHtml(a.description) : '';
       const isHero = i === 0 && !opts.history;
-      const heroMedia = isHero ? `<div class="hero-media">${escapeHtml(src)}</div>` : '';
+      const imgUrl = a.image || a.imageUrl || a.urlToImage || '';
+      const heroMedia = isHero
+        ? (imgUrl
+            ? `<div class="hero-media"><img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(a.title || src)}" loading="eager" onerror="this.remove()"></div>`
+            : `<div class="hero-media">${escapeHtml(src)}</div>`)
+        : '';
       return `
         <article class="story${isHero ? ' hero' : ''}" data-idx="${i}" data-id="${a.id}">
           ${isHero ? heroMedia : ''}

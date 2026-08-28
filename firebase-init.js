@@ -57,6 +57,7 @@ export async function upsertArticle(articleId, article, mode, dateKey) {
       title: article.title || "",
       description: article.description || "",
       url: article.url || "",
+      image: article.image || article.imageUrl || article.urlToImage || "",
       source: article.source?.name || "",
       publishedAt: article.publishedAt || "",
       mode,
