@@ -285,7 +285,6 @@
     font-size:14.5px;
     line-height:1.6;
     color:var(--ink);
-    white-space:pre-wrap;
   }
 
   .chat-panel{
@@ -300,6 +299,11 @@
     margin-bottom:8px;
     max-height:340px;
     overflow-y:auto;
+    scrollbar-width:none;       /* Firefox */
+    -ms-overflow-style:none;    /* eski Edge */
+  }
+  .chat-log::-webkit-scrollbar{
+    display:none;               /* Chrome, Safari, yangi Edge */
   }
   .chat-msg{
     font-family:var(--serif);
@@ -444,7 +448,37 @@
     .story-index{display:flex; gap:8px; align-items:center;}
     .story-index .src{margin-top:0;}
   }
+
+  /* Markdown render qilingan matn uchun uslub — h2/h3, bold, ro'yxatlar
+     ai-body va chat-msg ichida chiroyli chiqsin */
+  .ai-body h1, .ai-body h2, .ai-body h3,
+  .chat-msg h1, .chat-msg h2, .chat-msg h3{
+    font-family:var(--mono);
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    color:var(--wire-amber);
+    margin:14px 0 6px;
+  }
+  .ai-body p, .chat-msg p{margin:0 0 10px;}
+  .ai-body p:last-child, .chat-msg p:last-child{margin-bottom:0;}
+  .ai-body strong, .chat-msg strong{color:#fff; font-weight:700;}
+  .ai-body ul, .ai-body ol,
+  .chat-msg ul, .chat-msg ol{
+    margin:6px 0 10px;
+    padding-left:20px;
+  }
+  .ai-body li, .chat-msg li{margin-bottom:4px;}
+  .ai-body code, .chat-msg code{
+    font-family:var(--mono);
+    font-size:12.5px;
+    background:var(--paper-raised);
+    padding:1px 4px;
+    border-radius:2px;
+  }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
 </head>
 <body>
 
@@ -513,7 +547,25 @@ import {
 
 (function(){
   // =========================================================
-  // 0) STATUS HELPERS
+  // 0) MARKDOWN RENDER — AI/tarjima matnini xavfsiz HTML'ga aylantiradi.
+  //    marked.js matnni parse qiladi, DOMPurify natijani tozalaydi (XSS'dan
+  //    himoya — AI matni to'g'ridan-to'g'ri innerHTML'ga tushadi, shuning
+  //    uchun sanitize qilmasdan qo'yib bo'lmaydi).
+  //    Agar CDN yuklanmasa (tarmoq xato) — xom matnga fallback qilamiz,
+  //    ilova butunlay to'xtab qolmasligi kerak.
+  // =========================================================
+  function renderMd(el, text){
+    const safeText = text || '';
+    if(window.marked && window.DOMPurify){
+      const html = DOMPurify.sanitize(marked.parse(safeText));
+      el.innerHTML = html;
+    }else{
+      el.textContent = safeText; // fallback — marked/DOMPurify yuklanmagan
+    }
+  }
+
+  // =========================================================
+  // 0.1) STATUS HELPERS
   // =========================================================
   function setAiStatus(text, cls){
     const el = document.getElementById('aiStatus');
@@ -835,9 +887,9 @@ import {
           if(translateBody){
             const tTitle = doc.translatedTitle || '';
             const tDesc = doc.translatedDesc || '';
-            translateBody.textContent = tTitle + (tDesc ? ('\n\n' + tDesc) : '');
+            renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
           }
-          body.textContent = doc.explainResult;
+          renderMd(body, doc.explainResult);
           panel.classList.add('show');
           if(btn) btn.textContent = '🇺🇿 Tarjima + Tushuntirish (keshdan)';
         }
@@ -886,10 +938,9 @@ import {
       if(cached && cached.explainResult){
         const tTitle = cached.translatedTitle || '';
         const tDesc = cached.translatedDesc || '';
-        translateBody.textContent = tTitle + (tDesc ? ('\n\n' + tDesc) : '');
-        body.textContent = cached.explainResult;
-        btn.textContent = '🇺🇿 Tarjima + Tushuntirish (keshdan)';
-        btn.disabled = false;
+        renderMd(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''));
+        renderMd(body, cached.explainResult);
+        btn.style.display = 'none';
         return;
       }
     }catch(e){
@@ -917,9 +968,9 @@ import {
       if(!res.ok) throw new Error(tBody.error || `Tarjima xatoligi (HTTP ${res.status})`);
       const t = (tBody.translations || [])[0];
       if(t){ titleUz = t.title || titleUz; descUz = t.desc || descUz; }
-      translateBody.textContent = titleUz + (descUz ? ('\n\n' + descUz) : '');
+      renderMd(translateBody, titleUz + (descUz ? ('\n\n' + descUz) : ''));
     }catch(err){
-      translateBody.textContent = 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.';
+      renderMd(translateBody, 'Tarjima qilinmadi (' + err.message + '), asl matn bilan davom etamiz.');
     }
 
     // 2-qadam: Groq — endi asl matn emas, TARJIMA QILINGAN o'zbekcha matn
@@ -940,8 +991,8 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
         { role: 'system', content: sys },
         { role: 'user', content: userMsg }
       ]);
-      body.textContent = result || 'AI bo\'sh javob qaytardi.';
-      btn.textContent = '🇺🇿 Tarjima + Tushuntirish (keshdan)';
+      renderMd(body, result || 'AI bo\'sh javob qaytardi.');
+      btn.style.display = 'none';
 
       // Natijani (tarjima + tushuntirish) birgalikda Firestore'ga yozamiz —
       // keyingi safar shu article uchun 0-qadam buni topadi va na tarjima,
@@ -954,9 +1005,10 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
       }
 
     }catch(err){
+      // Bratishka, MUHIM: xato bo'lganda tugmani yashirmaymiz — aks holda
+      // odam qayta urinib ko'ra olmay qoladi. Faqat muvaffaqiyatda yo'qoladi.
       body.textContent = 'XATOLIK: ' + err.message;
       btn.textContent = '🇺🇿 Tarjima + Tushuntirish';
-    }finally{
       btn.disabled = false;
     }
   }
@@ -978,7 +1030,13 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
     const a = currentArticles[idx];
     if(!chatHistories[idx]){
       chatHistories[idx] = [
-        { role: 'system', content: `Sen yangiliklar bo'yicha muhokama qiladigan bilimdon suhbatdoshsan. Mavzu: "${a.title || ''}". Tavsif: "${a.description || ''}". Foydalanuvchi bilan o'zbek tilida, tabiiy va batafsil suhbatlash. Savollariga chuqur, faktlarga asoslangan javob ber.` }
+        { role: 'system', content: `Sen FAQAT shu bitta yangilik haqida gaplashadigan mutaxassissan. Mavzu: "${a.title || ''}". Tavsif: "${a.description || ''}".
+
+QATIY QOIDALAR:
+1) Foydalanuvchi nima yozmasin — "salom", "nima gap", yoki umuman mavzuga aloqasiz narsa — sen HAR DOIM javobingni shu yangilik bilan bog'lab ber. Oddiy "Salom! Qanday yordam bera olaman?" kabi umumiy javob berish QATIYAN TAQIQLANADI.
+2) Masalan, "salom" desa: qisqa salomlash + darhol shu yangilik haqida bir jumlada eslatma yoki savol bilan davom et (masalan: "Salom! ${a.title || 'shu yangilik'} haqida nimani muhokama qilmoqchisiz?").
+3) Agar foydalanuvchi ochiqchasiz boshqa, aloqasiz mavzuga o'tishga urinsa, muloyimlik bilan uni shu yangilikka qaytar — boshqa mavzuda erkin suhbatlashma.
+4) Javoblaring o'zbek tilida, tabiiy, lekin har doim shu maqola konteksti bilan bog'liq bo'lsin. Savollariga chuqur, faktlarga asoslangan javob ber.` }
       ];
     }
 
@@ -1036,7 +1094,15 @@ Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qili
   function appendChatMsg(log, role, text){
     const div = document.createElement('div');
     div.className = 'chat-msg ' + role;
-    div.textContent = text;
+    // Bratishka, MUHIM: faqat AI xabari markdown sifatida render qilinadi.
+    // User yozgan matnni HAR DOIM xom textContent qilib qo'yamiz — u odam
+    // yozgan matn, uni HTML/markdown deb parse qilishning hojati yo'q va
+    // xavfsizlik nuqtai nazaridan ham to'g'ri emas.
+    if(role === 'ai'){
+      renderMd(div, text);
+    }else{
+      div.textContent = text;
+    }
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
     return div;
