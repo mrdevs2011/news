@@ -90,13 +90,15 @@ try{
     scrollbar-color:var(--line) var(--paper);
     scrollbar-gutter:stable;            /* scrollbar paydo bo'lganda silkinish yo'q */
     overflow-y:scroll;                  /* scrollbar joyi doim band */
+    overflow-x:hidden;                  /* horizontal scroll himoyasi — endi shu yerda, body'da EMAS,
+                                            chunki body'dagi overflow-x:hidden yangi "scrolling box"
+                                            yaratib, aside#trending'ning sticky'sini o'ldirgan edi */
     background:var(--paper);
     transition:background-color .35s ease, color .35s ease;
   }
   body{
     background:var(--paper);
     color:var(--ink);
-    overflow-x:hidden;
     font-family:var(--serif);
     font-size:17px;
     line-height:1.65;
@@ -696,7 +698,9 @@ try{
   }
   .story p.desc{ color:var(--desc); }
 
-  /* SIDEBAR — doim sticky, fixed header+control ostida */
+  /* SIDEBAR — doim sticky, fixed header+control ostida
+     (!important endi shart emas — root sabab body{overflow-x:hidden} edi,
+     u html'ga ko'chirildi, lekin xavfsizlik uchun qoldiraman) */
   aside#trending{
     position:sticky !important;
     top:calc(var(--header-h) + var(--control-h) + 12px);
