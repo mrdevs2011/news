@@ -80,15 +80,15 @@ try{
   html{
     scrollbar-width:thin;               /* Firefox — tor va neytral */
     scrollbar-color:var(--line) var(--paper);
-  }
-
-  html{
+    scrollbar-gutter:stable;            /* scrollbar paydo bo'lganda silkinish yo'q */
+    overflow-y:scroll;                  /* scrollbar joyi doim band */
     background:var(--paper);
     transition:background-color .35s ease, color .35s ease;
   }
   body{
     background:var(--paper);
     color:var(--ink);
+    overflow-x:hidden;
     font-family:var(--serif);
     font-size:17px;
     line-height:1.65;
@@ -510,24 +510,18 @@ try{
   }
   .card-more svg{ width:16px; height:16px; transition:transform .35s ease; }
   .story.open .card-more svg{ transform:rotate(180deg); }
-  /* max-height:2200px o'rniga grid 0fr/1fr — kontent balandligiga mos,
-     sahifa sakramaydi, animatsiya silliq */
+  /* Ochilish/yopilish — transition YO'Q (animatsiya silkinish berardi) */
   .story-more{
     grid-area:more;
     margin-top:0;
     width:100%;
-    display:grid;
-    grid-template-rows:0fr;
-    opacity:0;
-    transition:grid-template-rows .4s cubic-bezier(.4,0,.2,1), opacity .35s ease, margin-top .35s ease;
+    display:none;
   }
   .story.open .story-more{
-    grid-template-rows:1fr;
-    opacity:1;
-    margin-top:2px;
+    display:block;
+    margin-top:4px;
   }
   .story-more-clip{
-    overflow:hidden;
     min-height:0;
   }
   .story-more-box{
@@ -1342,18 +1336,34 @@ import {
   let _pinY = null;
   let _pinUntil = 0;
   let _pinRaf = 0;
-  function pinScroll(ms){
-    _pinY = window.scrollY || window.pageYOffset || 0;
-    _pinUntil = Date.now() + (ms == null ? 900 : ms);
+  function getScrollY(){
+    return window.scrollY || document.documentElement.scrollTop || window.pageYOffset || 0;
+  }
+  function pinScroll(ms, forceY){
+    const now = Date.now();
+    // Agar allaqachon pin aktiv bo'lsa — Y ni qayta yozmaymiz (silkinish oldini oladi)
+    if(forceY != null){
+      _pinY = forceY;
+    }else if(_pinY == null || now > _pinUntil){
+      _pinY = getScrollY();
+    }
+    _pinUntil = now + (ms == null ? 900 : ms);
+    const apply = () => {
+      if(_pinY == null) return;
+      const y = getScrollY();
+      if(Math.abs(y - _pinY) > 0.5){
+        try{ window.scrollTo({ top: _pinY, left: 0, behavior: 'instant' }); }
+        catch(_){ window.scrollTo(0, _pinY); }
+      }
+    };
+    apply();
     const tick = () => {
       if(Date.now() > _pinUntil){
         _pinRaf = 0;
+        _pinY = null;
         return;
       }
-      const y = window.scrollY || 0;
-      if(_pinY != null && Math.abs(y - _pinY) > 1){
-        window.scrollTo(0, _pinY);
-      }
+      apply();
       _pinRaf = requestAnimationFrame(tick);
     };
     if(!_pinRaf) _pinRaf = requestAnimationFrame(tick);
@@ -2452,28 +2462,27 @@ import {
     const card = document.querySelector(`.story[data-idx="${idx}"]`);
     if(!card) return;
 
-    // Ochish/yopish + AI yuklanishi davomida scroll qotadi
-    pinScroll(1400);
+    // Bosishdan OLDIN scroll ni qotiramiz — keyin layout o'zgarsa ham joyida qoladi
+    const y = getScrollY();
+    pinScroll(2500, y);
 
     // Bir nechta card bir vaqtda ochiq bo'lishi mumkin (accordion yo'q)
     const open = card.classList.toggle('open');
     const moreBtn = card.querySelector('.card-more');
     if(moreBtn) moreBtn.setAttribute('title', open ? 'Yopish' : 'Batafsil');
 
-    pinScroll(1400);
+    pinScroll(2500, y);
 
     if(open){
       const a = currentArticles[idx];
       markOpened(a);
       card.classList.add('read');
       renderTrending(currentArticles);
-      // Panel ochilish animatsiyasi — scroll o'zgarmasin
-      await new Promise(r => setTimeout(r, 320));
-      pinScroll(2000);
+      pinScroll(3000, y);
       await toggleDiscuss(idx);
-      pinScroll(2000);
+      pinScroll(3000, y);
       await handleExplain(idx);
-      pinScroll(600);
+      pinScroll(800, y);
     }
   }
 
