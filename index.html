@@ -1192,6 +1192,16 @@ try{
       </h1>
     </div>
     <nav class="top-nav" aria-label="Asosiy navigatsiya">
+      <button type="button" class="hdr-btn tab-btn active" data-mode="home" title="Yangiliklar" aria-label="Yangiliklar">
+        <span class="hdr-ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            <path d="M8 7h8M8 11h8M8 15h5"/>
+          </svg>
+        </span>
+        <span class="hdr-label">News</span>
+      </button>
       <button type="button" class="hdr-btn tab-btn" data-mode="saved" title="Saqlanganlar" aria-label="Saqlanganlar">
         <span class="hdr-ico" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1199,25 +1209,6 @@ try{
           </svg>
         </span>
         <span class="hdr-label">Saved</span>
-      </button>
-      <button type="button" class="hdr-btn tab-btn active" data-mode="global" title="Global" aria-label="Global">
-        <span class="hdr-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-        </span>
-        <span class="hdr-label">Global</span>
-      </button>
-      <button type="button" class="hdr-btn tab-btn" data-mode="local" title="O'zbekiston" aria-label="O'zbekiston">
-        <span class="hdr-ico" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/>
-            <circle cx="12" cy="10" r="2.2"/>
-          </svg>
-        </span>
-        <span class="hdr-label">Local</span>
       </button>
       <button type="button" id="translateAllBtn" class="hdr-btn translate-btn" title="UZ tarjima / original" aria-label="UZ tarjima">
         <span class="hdr-ico" aria-hidden="true">
@@ -1370,13 +1361,46 @@ import {
   }
   try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
 
-  // AI javobi — darhol (animatsiyasiz)
+  // AI javobi: har bir so'z smooth paydo bo'ladi (typewriter emas — so'zma-so'z)
   async function revealWordsSmooth(el, text, opts = {}){
-    pinScroll(400);
+    pinScroll(1500);
     const safe = (text || '').toString();
-    if(opts.markdown) renderMd(el, safe);
-    else el.textContent = safe;
-    pinScroll(200);
+    const asMd = !!opts.markdown;
+    const delay = opts.delay != null ? opts.delay : 36;
+    if(!safe.trim()){
+      if(asMd) renderMd(el, safe);
+      else el.textContent = safe;
+      return;
+    }
+    const parts = safe.split(/(\s+)/);
+    el.innerHTML = '';
+    el.classList.add('word-reveal');
+    const frag = document.createDocumentFragment();
+    const spans = [];
+    for(const p of parts){
+      if(!p) continue;
+      if(/^\s+$/.test(p)){
+        frag.appendChild(document.createTextNode(p));
+      }else{
+        const span = document.createElement('span');
+        span.className = 'wr-word';
+        span.textContent = p;
+        span.style.opacity = '0';
+        frag.appendChild(span);
+        spans.push(span);
+      }
+    }
+    el.appendChild(frag);
+    for(let i = 0; i < spans.length; i++){
+      spans[i].style.opacity = '';
+      void spans[i].offsetWidth;
+      spans[i].style.animation = 'wordIn .28s ease forwards';
+      pinScroll(500);
+      await new Promise(r => setTimeout(r, delay));
+    }
+    el.classList.remove('word-reveal');
+    if(asMd) renderMd(el, safe);
+    pinScroll(300);
   }
 
   // =========================================================
@@ -1534,7 +1558,9 @@ import {
   function loadPrefs(){
     try{
       const m = localStorage.getItem(PREF_MODE);
-      if(m === 'global' || m === 'local' || m === 'history' || m === 'saved') currentMode = m;
+      // Eski global/local → birlashtirilgan home
+      if(m === 'global' || m === 'local' || m === 'home') currentMode = 'home';
+      else if(m === 'history' || m === 'saved') currentMode = m;
       // Birinchi ochilishda UZ default yoqiladi; keyin foydalanuvchi tanlovi saqlanadi
       const tr = localStorage.getItem(PREF_TRANSLATE);
       translateModeOn = tr === null ? true : tr === '1';
@@ -1545,7 +1571,7 @@ import {
     }catch(e){}
   }
 
-  let currentMode = 'global';
+  let currentMode = 'home';
   let refreshTimer = null;
   let currentArticles = []; // hozirgi feed'dagi maqolalar, {..., id} bilan (id = hashUrl natijasi)
 
@@ -1594,7 +1620,8 @@ import {
         feedLabel.textContent = "SAQLANGANLAR";
         loadSavedFeed();
       }else{
-        feedLabel.textContent = currentMode === 'global' ? "Bugungi to'plam" : "O'zbekiston to'plami";
+        currentMode = 'home';
+        feedLabel.textContent = "Bugungi to'plam";
         loadFeed();
       }
     });
@@ -1649,9 +1676,20 @@ import {
     return typeof a.source === 'string' ? (a.source || "NOMA'LUM") : (a.source.name || "NOMA'LUM");
   }
 
+  // Global + local aralash, eng yangisidan boshlab
+  function sortMixNewest(list){
+    return (list || []).slice().sort((a, b) => {
+      const tb = Date.parse(b.publishedAt || '') || 0;
+      const ta = Date.parse(a.publishedAt || '') || 0;
+      if(tb !== ta) return tb - ta;
+      return interestScore(b) - interestScore(a);
+    });
+  }
+
   async function showCachedFeed(dateKey, note){
-    const cached = await getArticlesByDateMode(dateKey, currentMode);
-    currentArticles = pickFeatured(cached.map(cleanArticleText));
+    // Barcha mode'lar (global + local) birgalikda
+    const cached = await getArticlesByDate(dateKey);
+    currentArticles = sortMixNewest(cached.map(cleanArticleText));
     if(!currentArticles.length){
       feedEl.innerHTML = '<div class="placeholder">FIRESTORE\'DA HALI YANGILIK YO\'Q<br>SLOT VAQTI KELGANDA GNEWS\'DAN OLINADI</div>';
       feedCount.textContent = '0 TA YANGILIK';
@@ -1718,27 +1756,54 @@ import {
     }
   }
 
-  async function persistGnewsBatch(rawArticles, dateKey, slot){
+  async function persistGnewsBatch(rawArticles, dateKey, slot, mode){
+    const saveMode = mode || 'global';
     markDay(dateKey).catch(e => console.warn('kun belgisi yozilmadi:', e.message));
     const saved = await Promise.all((rawArticles || []).map(async (a) => {
       const id = await hashUrl(a.url || a.title || Math.random().toString());
       try{
-        await upsertArticle(id, { ...a, slot }, currentMode, dateKey);
+        await upsertArticle(id, { ...a, slot }, saveMode, dateKey);
       }catch(e){
         console.warn('Firestore upsert xato:', e.message);
       }
-      return cleanArticleText({ ...a, id, slot });
+      return cleanArticleText({ ...a, id, slot, mode: saveMode });
     }));
     return saved;
   }
 
-  async function fetchGnewsSlot(dateKey, slot){
-    const res = await fetch(`/api/gnews?mode=${currentMode}`);
+  async function fetchGnewsSlot(dateKey, slot, mode){
+    const m = mode === 'local' ? 'local' : 'global';
+    const res = await fetch(`/api/gnews?mode=${m}`);
     const data = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     const rawArticles = data.articles || [];
-    await persistGnewsBatch(rawArticles, dateKey, slot);
-    await finishNewsSlot(dateKey, currentMode, slot, { status: 'done', count: rawArticles.length });
+    await persistGnewsBatch(rawArticles, dateKey, slot, m);
+    await finishNewsSlot(dateKey, m, slot, { status: 'done', count: rawArticles.length });
+  }
+
+  // Bitta mode (global yoki local) uchun slot: kesh / kutish / GNews
+  async function syncModeSlot(dateKey, slot, mode){
+    let claim;
+    try{
+      claim = await claimNewsSlot(dateKey, mode, slot);
+    }catch(e){
+      console.warn('slot claim xato (' + mode + '):', e.message);
+      try{ await fetchGnewsSlot(dateKey, slot, mode); }catch(err){
+        console.warn('gnews fetch xato (' + mode + '):', err.message);
+      }
+      return;
+    }
+    if(claim.action === 'cached') return;
+    if(claim.action === 'wait'){
+      await waitForNewsSlot(dateKey, mode, slot);
+      return;
+    }
+    try{
+      await fetchGnewsSlot(dateKey, slot, mode);
+    }catch(err){
+      await finishNewsSlot(dateKey, mode, slot, { status: 'error', error: err.message }).catch(() => {});
+      console.warn('gnews slot xato (' + mode + '):', err.message);
+    }
   }
 
   async function loadFeed(){
@@ -1750,59 +1815,22 @@ import {
     const { dateKey, slot } = currentNewsSlot();
 
     try{
-      // 1) Avval bazadan ko'rsatamiz — har kirishda GNews'ga bormaymiz.
+      // 1) Avval bazadan — global + local aralash
       await showCachedFeed(dateKey, 'FIRESTORE — ' + dateKey + ' / ' + slot + ':00');
 
-      // 2) Shu slot allaqachon olingan bo'lsa — GNews umuman chaqirilmaydi.
-      let claim;
-      try{
-        claim = await claimNewsSlot(dateKey, currentMode, slot);
-      }catch(e){
-        console.warn('slot claim xato:', e.message);
-        if(currentArticles.length){
-          statusLine.textContent = 'FIRESTORE KESH (SYNC YOZILMADI)';
-          return;
-        }
-        statusLine.textContent = 'GNEWS — BIRINCHI YUKLASH...';
-        await fetchGnewsSlot(dateKey, slot);
-        await showCachedFeed(dateKey, 'YANGILANDI — FIRESTORE / SLOT ' + slot + ':00');
-        return;
-      }
+      // 2) Ikkala manba slotini yangilash (global + local)
+      statusLine.textContent = 'GNEWS — GLOBAL + LOCAL YANGILANMOQDA...';
+      await Promise.all([
+        syncModeSlot(dateKey, slot, 'global'),
+        syncModeSlot(dateKey, slot, 'local')
+      ]);
 
-      if(claim.action === 'cached'){
-        statusLine.textContent = 'FIRESTORE KESH — SLOT ' + slot + ':00 ALLAQACHON OLINGAN';
-        return;
-      }
-
-      if(claim.action === 'wait'){
-        statusLine.textContent = 'BOSHQA SO\'ROV GNEWS OLYAPTI — KUTILMOQDA...';
-        const ok = await waitForNewsSlot(dateKey, currentMode, slot);
-        await showCachedFeed(dateKey, ok
-          ? 'FIRESTORE — YANGI SLOT YUKLANDI'
-          : 'FIRESTORE — KUTISH TUGADI');
-        return;
-      }
-
-      // 3) Faqat shu slotning BIRINCHI tashrifi GNews'ga boradi (kuniga 3 marta).
-      statusLine.textContent = 'GNEWS SLOT ' + slot + ':00 — YANGILANMOQDA...';
-      try{
-        await fetchGnewsSlot(dateKey, slot);
-      }catch(err){
-        await finishNewsSlot(dateKey, currentMode, slot, { status: 'error', error: err.message }).catch(() => {});
-        const hadCache = currentArticles.length > 0;
-        if(hadCache){
-          statusLine.textContent = 'GNEWS XATO, KESH KO\'RSATILDI: ' + err.message;
-          return;
-        }
-        throw err;
-      }
-
-      await showCachedFeed(dateKey, 'YANGILANDI — FIRESTORE / SLOT ' + slot + ':00');
+      await showCachedFeed(dateKey, 'YANGILANDI — GLOBAL + LOCAL / SLOT ' + slot + ':00');
     } catch(err){
       console.error(err);
       feedEl.innerHTML = `<div class="error-box">
         XATOLIK YUZ BERDI: ${escapeHtml(err.message)}<br><br>
-        Tekshir: 1) Vercel'da GNEWS_KEY environment variable qo'yilganmi? 2) Kunlik limit (100) tugamadimi? 3) "uz" mamlakati uchun local yangilik kam bo'lishi mumkin — global tab'ni sinab ko'r.
+        Tekshir: 1) Vercel'da GNEWS_KEY environment variable qo'yilganmi? 2) Kunlik limit (100) tugamadimi?
       </div>`;
       statusLine.textContent = 'XATOLIK';
     }
@@ -1859,13 +1887,13 @@ import {
   }
 
   async function loadMoreFromArchive(){
-    const mode = currentMode === 'local' ? 'local' : 'global';
     const existing = new Set(currentArticles.map(a => a.id));
     const extra = [];
     try{
       const days = await getRecentDays(20);
       for(const day of days){
-        const docs = await getArticlesByDateMode(day, mode);
+        // Global + local arxiv birgalikda
+        const docs = await getArticlesByDate(day);
         for(const raw of docs || []){
           const a = cleanArticleText(raw);
           if(!a.id || existing.has(a.id)) continue;
@@ -1877,8 +1905,7 @@ import {
     }catch(e){
       console.warn('arxiv more:', e.message);
     }
-    extra.sort((a, b) => interestScore(b) - interestScore(a));
-    return extra;
+    return sortMixNewest(extra);
   }
 
   async function loadMoreNews(){
@@ -1894,25 +1921,25 @@ import {
       if(currentArticles.length >= target){
         visibleCount = target;
         savePrefs();
-        // Har render oldidan eng shov-shuvlini qayta tanlaymiz
-        currentArticles = pickFeatured(currentArticles);
+        currentArticles = sortMixNewest(currentArticles);
         renderFeed(currentArticles);
         return;
       }
 
       const archived = await loadMoreFromArchive();
       if(archived.length){
-        currentArticles = pickFeatured(currentArticles.concat(archived));
+        currentArticles = sortMixNewest(currentArticles.concat(archived));
         added += archived.length;
       }
 
-      if(currentArticles.length < target && currentMode !== 'history'){
+      if(currentArticles.length < target && currentMode !== 'history' && currentMode !== 'saved'){
         const { dateKey, slot } = currentNewsSlot();
         const existing = new Set(currentArticles.map(a => a.id));
-        const fetchMode = currentMode === 'local' ? 'local' : 'global';
-        for(let attempt = 0; attempt < 3 && currentArticles.length < target; attempt++){
+        // Global va local navbat bilan
+        for(let attempt = 0; attempt < 4 && currentArticles.length < target; attempt++){
           gnewsPage += 1;
           const topic = (gnewsPage + new Date().getHours()) % 6;
+          const fetchMode = attempt % 2 === 0 ? 'global' : 'local';
           try{
             const res = await fetch(`/api/gnews?mode=${fetchMode}&more=1&topic=${topic}`);
             const data = await res.json().catch(() => ({}));
@@ -1920,12 +1947,11 @@ import {
               console.warn('gnews more:', data.error || res.status);
               continue;
             }
-            const raw = (data.articles || []).slice().sort((a, b) => interestScore(b) - interestScore(a));
-            const saved = await persistGnewsBatch(raw, dateKey, slot);
+            const raw = (data.articles || []).slice();
+            const saved = await persistGnewsBatch(raw, dateKey, slot, fetchMode);
             const fresh = saved.filter(a => a.id && !existing.has(a.id) && !isNearDuplicate(a, currentArticles));
             fresh.forEach(a => existing.add(a.id));
-            // Yangi maqolalar kelganda ham eng shov-shuvli (hero) qayta tanlanadi
-            currentArticles = pickFeatured(currentArticles.concat(fresh));
+            currentArticles = sortMixNewest(currentArticles.concat(fresh));
             added += fresh.length;
           }catch(e){
             console.warn('gnews more urinish:', e.message);
@@ -1937,8 +1963,7 @@ import {
         ? target
         : Math.max(visibleCount, currentArticles.length);
       savePrefs();
-      // Har safar eng yuqori buzzScore'li mavzu hero bo'lib chiqadi
-      currentArticles = pickFeatured(currentArticles);
+      currentArticles = sortMixNewest(currentArticles);
       renderFeed(currentArticles);
       if(added === 0 && currentArticles.length <= visibleCount){
         const again = document.getElementById('moreBtn');
@@ -2368,7 +2393,7 @@ import {
     feedLabel.textContent = formatDateUz(dateKey).toUpperCase();
     try{
       const docs = await getArticlesByDate(dateKey);
-      currentArticles = pickFeatured((docs || []).map(cleanArticleText));
+      currentArticles = sortMixNewest((docs || []).map(cleanArticleText));
       renderFeed(currentArticles, { history: true, date: dateKey });
       statusLine.textContent = 'TARIX — ' + dateKey;
     }catch(err){
@@ -2924,7 +2949,7 @@ QATIY USLUB:
     // almashtirib yubormasligi kerak edi — shu yerda guard qo'yilmasa, odam
     // 3 kun oldingi yangilikni o'qiyotganda ekran birdan sakrab ketardi.
     refreshTimer = setInterval(() => {
-      if(currentMode === 'global' || currentMode === 'local') loadFeed();
+      if(currentMode === 'home') loadFeed();
     }, 30 * 60 * 1000);
   }
 
@@ -2972,7 +2997,8 @@ QATIY USLUB:
     feedLabel.textContent = "SAQLANGANLAR";
     loadSavedFeed();
   }else{
-    feedLabel.textContent = currentMode === 'global' ? "Bugungi to'plam" : "O'zbekiston to'plami";
+    currentMode = 'home';
+    feedLabel.textContent = "Bugungi to'plam";
     loadFeed();
   }
 
