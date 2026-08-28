@@ -800,6 +800,18 @@ try{
     line-height:1.75;
     color:var(--ink);
     max-width:40rem;
+    /* Bratan, MUHIM: tarjima/tushuntirish yuklanayotganda innerHTML
+       bo'shatilib, faqat qisqa "yuklanmoqda..." matni qoladi — shu payt
+       min-height bo'lmasa, box keskin qisqarib "yopilayotgandek" ko'rinardi.
+       min-height shu qisqarishning oldini oladi, keyin content o'zi o'sib
+       min-height'dan katta bo'lib ketaveradi. */
+    min-height:1.75em;
+    transition:min-height .25s ease;
+  }
+  /* "AI TUSHUNTIRISHI" qismi odatda tarjimadan uzunroq bo'ladi —
+     shunga mos kattaroq min-height, box kamroq "sakraydi". */
+  .ai-panel .ai-body[id^="ai-body-"]{
+    min-height:3.5em;
   }
   .ai-body.fade-in{
     animation:contentFadeIn .55s ease both;
@@ -1471,6 +1483,28 @@ import {
       _pinRaf = requestAnimationFrame(tick);
     };
     if(!_pinRaf) _pinRaf = requestAnimationFrame(tick);
+  }
+
+  // Bratan, sidebar/"oxirgi ochilganlar"dan bosilganda story'ga smooth scroll
+  // qilish uchun. pinScroll eski joyga "tortib" qaytarmasligi kerak — shuning
+  // uchun _userScrolling flagini vaqtincha o'zimiz true qilib qo'yamiz, bu esa
+  // pinScroll'ning HAR QANDAY chaqiruvini (toggleCardMore/handleExplain ichida
+  // ham) shu vaqt oralig'ida no-op qiladi (yuqoridagi "if(_userScrolling) return").
+  function scrollToStory(target){
+    if(!target) return;
+    releasePin();
+    _userScrolling = true;
+    clearTimeout(_userScrollTimer);
+    const cs = getComputedStyle(document.documentElement);
+    const headerH = parseFloat(cs.getPropertyValue('--header-h')) || 56;
+    const controlH = parseFloat(cs.getPropertyValue('--control-h')) || 33;
+    const offset = headerH + controlH + 16;
+    const top = Math.max(0, target.getBoundingClientRect().top + getScrollY() - offset);
+    try{ window.scrollTo({ top, left: 0, behavior: 'smooth' }); }
+    catch(_){ window.scrollTo(0, top); }
+    // Smooth scroll animatsiyasi tugaguncha (~1s) pinScroll'ga tegmaymiz,
+    // shundan keyin himoya odatdagidek davom etadi (AI javob yuklanganda va h.k.)
+    _userScrollTimer = setTimeout(() => { _userScrolling = false; }, 1000);
   }
   try{ if('scrollRestoration' in history) history.scrollRestoration = 'manual'; }catch(_){}
 
@@ -2502,9 +2536,12 @@ import {
         e.preventDefault();
         const target = document.querySelector(`.story[data-id="${link.dataset.openId}"]`);
         if(target){
-          // Autoscroll yo'q — faqat more ochiladi
           const idx = Number(target.dataset.idx);
           if(!target.classList.contains('open')) toggleCardMore(idx);
+          // Card ochilishi uning o'z "top" pozitsiyasini o'zgartirmaydi
+          // (kengayish faqat pastga qarab bo'ladi), shuning uchun scrollni
+          // darhol, kutmasdan boshlasa bo'ladi.
+          scrollToStory(target);
         }
       });
     });
