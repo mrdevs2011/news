@@ -54,12 +54,33 @@ export default async function handler(req, res) {
     '(cybersecurity OR vulnerability OR ransomware OR "zero day")',
     '(startup OR "developer tools" OR SaaS OR GPU OR NVIDIA)',
   ];
+
+  // Bratan aytdi: "local" (O'ZBEKISTON) tab endi FAQAT O'zbekistonga
+  // aloqador yangiliklar bo'lsin — avval faqat country=uz (ya'ni Uzbek
+  // nashri) ishlatilardi, lekin bu shunchaki "Uzbek sayti yozgan"
+  // degani edi, mavzuning O'ZI O'zbekiston bilan bog'liqligini
+  // KAFOLATLAMASDI (masalan, "Anthropic Claude chiqardi" xabari ham
+  // shu yerda chiqaverardi, garchi O'zbekistonga aloqasi bo'lmasa ham).
+  // Shu sabab har bir so'rovga majburiy "AND (Uzbekiston nomlari)"
+  // qo'shildi — GNews endi faqat sarlavha/tavsifida O'zbekiston/
+  // Toshkent aniq tilga olingan maqolalarni qaytaradi.
+  const UZ_CLAUSE = '(Uzbekistan OR \u0423\u0437\u0431\u0435\u043a\u0438\u0441\u0442\u0430\u043d OR "O\'zbekiston" OR Toshkent OR Tashkent OR \u0422\u0430\u0448\u043a\u0435\u043d\u0442)';
+  const LOCAL_QUERIES = [
+    '(AI OR "sun\'iy intellekt" OR ChatGPT OR Claude OR Gemini) AND ' + UZ_CLAUSE,
+    '("IT Park" OR "raqamli iqtisodiyot" OR startup OR startap OR innovatsiya) AND ' + UZ_CLAUSE,
+    '(dasturlash OR programming OR IT OR texnologiya OR technology) AND ' + UZ_CLAUSE,
+    '(kiberxavfsizlik OR cybersecurity OR hacker OR "data markaz") AND ' + UZ_CLAUSE,
+    '(telecom OR aloqa OR internet OR 5G OR mobil) AND ' + UZ_CLAUSE,
+    '(robot OR robototexnika OR chip OR elektronika) AND ' + UZ_CLAUSE,
+  ];
+  const QUERY_SET = mode === 'local' ? LOCAL_QUERIES : TECH_QUERIES;
+
   const topic = Math.max(0, parseInt(String(req.query.topic || '-1'), 10));
   const isMore = req.query.more === '1' || topic >= 0;
   const qIndex = topic >= 0
-    ? topic % TECH_QUERIES.length
-    : (new Date().getHours() + Math.max(0, page - 1)) % TECH_QUERIES.length;
-  const TECH_QUERY = TECH_QUERIES[qIndex];
+    ? topic % QUERY_SET.length
+    : (new Date().getHours() + Math.max(0, page - 1)) % QUERY_SET.length;
+  const TECH_QUERY = QUERY_SET[qIndex];
   // MORE: relevance + page=1 (mavzuning eng yaxshi boshi).
   // Birinchi yuklash: publishedAt (yangiligi).
   const sortby = 'publishedAt';
@@ -126,6 +147,32 @@ export default async function handler(req, res) {
       }
       console.warn('[gnews] non-ok response body:', JSON.stringify(data));
       return res.status(gnewsRes.status).json({ error: gnewsMessage });
+    }
+
+    // Bratan, MUHIM: "gapirilayotgan mavzuga REAL o'sha rasm bo'lsin"
+    // degan talab bor — ya'ni rasm o'sha aniq voqeani ko'rsatishi kerak,
+    // sayt logotipi yoki andoza (template) surat emas. GNews rasmni
+    // maqolaning o'ziga tegishli qilib beradi (bu HAQIQIY rasm), lekin
+    // ba'zan nashr o'zining bir xil "default"/logotip rasmini BIR NECHA
+    // TURLI maqolaga qo'yib qo'yadi — bu holda rasm aslida o'sha voqeaga
+    // aloqasi yo'q umumiy tasvir bo'lib chiqadi. Shuni aniqlash uchun:
+    // agar bitta rasm URL shu partiyadagi 3+ TURLI maqolada takrorlansa,
+    // demak bu o'sha voqeaning real surati emas — olib tashlanadi va
+    // frontend'da matn-thumb (sarlavha) ko'rsatiladi, noto'g'ri/mos
+    // kelmaydigan rasm ko'rsatilgandan ko'ra shu ma'qul.
+    if (Array.isArray(data.articles)) {
+      const freq = {};
+      data.articles.forEach(a => {
+        const img = a.image || a.imageUrl || a.urlToImage;
+        if (img) freq[img] = (freq[img] || 0) + 1;
+      });
+      data.articles = data.articles.map(a => {
+        const img = a.image || a.imageUrl || a.urlToImage;
+        if (img && freq[img] >= 3) {
+          return { ...a, image: '', imageUrl: '', urlToImage: '' };
+        }
+        return a;
+      });
     }
 
     // Vercel edge/CDN darajasida 5 daqiqa keshlash — kunlik 100 so'rov

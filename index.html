@@ -527,8 +527,13 @@ try{
   .story h2 a{color:var(--ink); text-decoration:none;}
   .story h2 a:hover{color:var(--wire-amber);}
 
-  .story.read{ opacity:.58; }
-  .story.read:hover, .story.read.open{ opacity:1; }
+  /* O'qilgan story'lar xiralashadi, LEKIN "BUGUNGI ENG MASHHUR" (hero)
+     hech qachon xiralashmaydi — doimo tiniq qoladi. */
+  .story.read:not(.hero){ opacity:.58; }
+  .story.read:not(.hero):hover, .story.read:not(.hero).open{ opacity:1; }
+  .story.hero, .story.hero.read, .story.hero.read:hover, .story.hero.read.open{
+    opacity:1;
+  }
   .story p.desc{
     font-size:16.5px;
     line-height:1.7;
@@ -546,11 +551,16 @@ try{
   }
   html[data-theme="light"] .story p.desc{ color:#2f2a22; }
 
-  /* SIDEBAR — "ENG KO'P O'QILGANLAR". JS orqali currentArticles'ning
-     birinchi 4 tasidan sarlavha olib to'ldiraman (renderFeed ichida). */
+  /* SIDEBAR — "Oxirgi ochilganlar". Scroll qilganda sticky bo'lib
+     ekranda qoladi (header ostida). */
   aside#trending{
     position:sticky;
-    top:90px;
+    top:88px;
+    z-index:20;
+    align-self:start;
+    max-height:calc(100vh - 100px);
+    overflow-y:auto;
+    overscroll-behavior:contain;
   }
   aside#trending h3{
     font-family:var(--mono);
@@ -813,11 +823,15 @@ try{
     max-width:85%;
     border:1px solid var(--line);
   }
+  /* AI chat javobi — AI tushunchasi (.ai-body) bilan bir xil tiniq rang,
+     xira (ink-dim) bo'lmasin. */
   .chat-msg.ai{
     background:transparent;
-    color:var(--ink-dim);
+    color:var(--ink);
     border-left:none;
     padding-left:0;
+    font-size:15.5px;
+    line-height:1.7;
   }
   .chat-input-row{
     display:flex;
@@ -1618,13 +1632,15 @@ import {
       if(currentArticles.length >= target){
         visibleCount = target;
         savePrefs();
+        // Har render oldidan eng shov-shuvlini qayta tanlaymiz
+        currentArticles = pickFeatured(currentArticles);
         renderFeed(currentArticles);
         return;
       }
 
       const archived = await loadMoreFromArchive();
       if(archived.length){
-        currentArticles = currentArticles.concat(archived);
+        currentArticles = pickFeatured(currentArticles.concat(archived));
         added += archived.length;
       }
 
@@ -1646,7 +1662,8 @@ import {
             const saved = await persistGnewsBatch(raw, dateKey, slot);
             const fresh = saved.filter(a => a.id && !existing.has(a.id) && !isNearDuplicate(a, currentArticles));
             fresh.forEach(a => existing.add(a.id));
-            currentArticles = currentArticles.concat(fresh);
+            // Yangi maqolalar kelganda ham eng shov-shuvli (hero) qayta tanlanadi
+            currentArticles = pickFeatured(currentArticles.concat(fresh));
             added += fresh.length;
           }catch(e){
             console.warn('gnews more urinish:', e.message);
@@ -1658,6 +1675,8 @@ import {
         ? target
         : Math.max(visibleCount, currentArticles.length);
       savePrefs();
+      // Har safar eng yuqori buzzScore'li mavzu hero bo'lib chiqadi
+      currentArticles = pickFeatured(currentArticles);
       renderFeed(currentArticles);
       if(added === 0 && currentArticles.length <= visibleCount){
         const again = document.getElementById('moreBtn');
@@ -1757,9 +1776,7 @@ import {
         </article>`;
     }).join('') + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">Yana 5 ta</button></div>');
 
-    // Sidebar "ENG KO'P O'QILGANLAR" — haqiqiy o'qilish statistikasi yo'q
-    // (buning uchun alohida analytics/Firestore counter kerak bo'lardi),
-    // shuning uchun hozircha feed'dagi keyingi 4 ta sarlavhani ko'rsatadi.
+    // Sidebar "Oxirgi ochilganlar" — localStorage'dagi oxirgi ochilganlar.
     // Bosilsa story'ga scroll qiladi — tashqi link emas, ichki navigatsiya.
     renderTrending(articles);
 
@@ -1802,8 +1819,8 @@ import {
     }
   }
 
-  // Sidebar'ni to'ldiradi: birinchi story'dan keyingi 4 tasini oladi,
-  // bosilganda o'sha story'ga smooth scroll qiladi.
+  // Sidebar "Oxirgi ochilganlar": localStorage'dagi oxirgi ochilgan + keyinroq
+  // ro'yxatidan sarlavhalarni ko'rsatadi. Bosilsa o'sha story'ga smooth scroll.
   function renderTrending(articles){
     const list = document.getElementById('trending-list');
     const box = document.getElementById('trending');
