@@ -53,9 +53,23 @@ export default async function handler(req, res) {
     const data = await gnewsRes.json();
 
     if (!gnewsRes.ok) {
-      return res.status(gnewsRes.status).json({
-        error: data.errors ? data.errors.join(', ') : `GNews HTTP ${gnewsRes.status}`
-      });
+      // Bratan, MUHIM: GNews xato bo'lganda "errors" kalitini har doim
+      // massiv qilib qaytaravermaydi — ba'zan string, ba'zan boshqa shakl.
+      // Shuning uchun avval Array.isArray bilan TUR tekshiriladi, keyingina
+      // .join() chaqiriladi. Aks holda "truthy lekin array emas" holatda
+      // xuddi shu joyda yana TypeError chiqib, 502'ga aylanaveradi.
+      let gnewsMessage;
+      if (Array.isArray(data.errors)) {
+        gnewsMessage = data.errors.join(', ');
+      } else if (typeof data.errors === 'string') {
+        gnewsMessage = data.errors;
+      } else if (typeof data.message === 'string') {
+        gnewsMessage = data.message;
+      } else {
+        gnewsMessage = `GNews HTTP ${gnewsRes.status}`;
+      }
+      console.warn('[gnews] non-ok response body:', JSON.stringify(data));
+      return res.status(gnewsRes.status).json({ error: gnewsMessage });
     }
 
     // Vercel edge/CDN darajasida 5 daqiqa keshlash — kunlik 100 so'rov
