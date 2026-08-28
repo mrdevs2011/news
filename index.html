@@ -1025,7 +1025,7 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
       if(!descEl.parentElement.querySelector('.translated-badge')){
         const badge = document.createElement('span');
         badge.className = 'translated-badge';
-        badge.textContent = '(AI tarjima)';
+        badge.textContent = '(tarjima)';
         descEl.after(badge);
       }
     }
@@ -1076,36 +1076,29 @@ Faqat o'zbek tilida yoz. Sodda, tushunarli, lekin professional uslubda.`;
         }
       });
 
-      // 2-qadam: faqat keshda YO'Q bo'lganlarni AI'ga yuboramiz.
+      // 2-qadam: faqat keshda YO'Q bo'lganlarni tarjima API'ga yuboramiz.
+      // MUHIM: bu AI EMAS — /api/translate alohida, haqiqiy tarjima xizmati.
+      // Groq/AI faqat "Muhokama qilish" chatida ishlatiladi, tarjimada YO'Q.
       if(needsAiIdx.length){
-        const sys = `Senga yangiliklar ro'yxati JSON massiv sifatida beriladi, har birida "id", "title", "desc" maydonlari bor.
-Har bir "title" va "desc"ni O'ZBEK TILIGA tarjima qil. Ma'noni to'g'ri, tabiiy uzbekcha uslubda ber, so'zma-so'z emas.
-JAVOBING FAQAT JSON MASSIV bo'lishi kerak, boshqa hech qanday matn, izoh, yoki markdown belgisi ("\`\`\`") qo'shma.
-Format: [{"id": 0, "title": "...", "desc": "..."}, ...]
-Massiv uzunligi va "id" tartibi kiruvchi ma'lumot bilan AYNAN bir xil bo'lishi kerak.`;
-
         const payload = needsAiIdx.map(i => ({
           id: i,
           title: originalTexts[i].title,
           desc: originalTexts[i].desc
         }));
 
-        const raw = await aiChat([
-          { role: 'system', content: sys },
-          { role: 'user', content: JSON.stringify(payload) }
-        ]);
-
-        // AI ba'zan ```json bilan o'rab yuborishi mumkin — tozalab olamiz.
-        const cleaned = raw.replace(/```json|```/g, '').trim();
-        let translated;
-        try{
-          translated = JSON.parse(cleaned);
-        }catch(parseErr){
-          throw new Error('AI javobi JSON formatda emas: ' + parseErr.message);
+        const res = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: payload, target: 'uz' })
+        });
+        const body = await res.json().catch(() => ({}));
+        if(!res.ok){
+          throw new Error(body.error || `Tarjima xatoligi (HTTP ${res.status})`);
         }
 
+        const translated = body.translations;
         if(!Array.isArray(translated)){
-          throw new Error('AI JSON massiv qaytarmadi.');
+          throw new Error('Tarjima xizmati massiv qaytarmadi.');
         }
 
         // 3-qadam: DOM'ga chiqaramiz VA Firestore'ga yozamiz — shunda keyingi safar
