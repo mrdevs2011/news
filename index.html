@@ -124,10 +124,17 @@ try{
   header{
     border-bottom:1px solid var(--line);
     padding:12px 32px;
-    position:sticky;
+    position:fixed;
     top:0;
+    left:0;
+    right:0;
+    width:100%;
     background:var(--paper);
-    z-index:50;
+    z-index:100;
+    /* blur + solid — scroll paytida ostidagi matn ko'rinmasin */
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    background:color-mix(in srgb, var(--paper) 92%, transparent);
   }
 
   .masthead-row{
@@ -317,11 +324,17 @@ try{
      tab'lar shu qatorga tushdi. Asosiy header endi toza gazeta-masthead,
      texnik status/kontrol qismi esa alohida ingichka chiziq ostida. */
   .control-bar{
-    max-width:1160px;
-    margin:0 auto;
+    position:fixed;
+    top:56px; /* header balandligi taxminan */
+    left:0;
+    right:0;
+    z-index:99;
+    width:100%;
+    max-width:none;
+    margin:0;
     display:flex;
     align-items:center;
-    justify-content:flex-end;
+    justify-content:center;
     gap:10px;
     padding:6px 32px;
     border-bottom:1px solid var(--line);
@@ -329,6 +342,9 @@ try{
     font-size:11px;
     color:var(--ink-dim);
     letter-spacing:.04em;
+    background:color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
   }
   .control-bar .dev-status{ display:none; }
   .control-bar .control-left{
@@ -336,6 +352,9 @@ try{
     align-items:center;
     gap:14px;
     flex-wrap:wrap;
+    max-width:1160px;
+    width:100%;
+    justify-content:flex-start;
   }
   .control-bar .control-right{
     display:flex;
@@ -358,7 +377,8 @@ try{
   main{
     max-width:1160px;
     margin:0 auto;
-    padding:28px 32px 80px;
+    /* header (~56px) + control-bar (~32px) + biroz bo'shliq */
+    padding:108px 32px 80px;
     display:grid;
     grid-template-columns:1fr 300px;
     gap:48px;
@@ -558,14 +578,25 @@ try{
     height:42px;
     border:none;
     border-radius:14px;
-    background:var(--wire-green);
-    color:var(--on-accent);
+    background:var(--wire-amber);
+    color:#fff;
     display:inline-flex;
     align-items:center;
     justify-content:center;
     cursor:pointer;
+    flex-shrink:0;
+    box-shadow:0 2px 8px color-mix(in srgb, var(--wire-amber) 35%, transparent);
   }
-  .ask-row button svg{ width:18px; height:18px; }
+  .ask-row button:hover{
+    filter:brightness(1.08);
+  }
+  .ask-row button svg{ width:18px; height:18px; stroke:#fff; }
+  html[data-theme="light"] .ask-row button{
+    background:#c45a2a;
+    color:#fff;
+    box-shadow:0 2px 10px rgba(196,90,42,.28);
+  }
+  html[data-theme="light"] .ask-row button svg{ stroke:#fff; }
   .story.hero{
     padding:16px;
     grid-template-columns:1fr;
@@ -652,15 +683,16 @@ try{
   }
   .story p.desc{ color:var(--desc); }
 
-  /* SIDEBAR — doim sticky (header ostida qoladi) */
+  /* SIDEBAR — doim sticky, fixed header+control ostida */
   aside#trending{
     position:sticky !important;
-    top:72px;
+    top:100px; /* header + control-bar balandligi */
     z-index:20;
     align-self:start;
-    max-height:calc(100vh - 88px);
+    max-height:calc(100vh - 112px);
     overflow-y:auto;
     overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
   }
   aside#trending h3{
     font-family:var(--mono);
@@ -1124,16 +1156,19 @@ try{
   }
 
   @media (max-width:900px){
-    main{ grid-template-columns:1fr; }
+    main{
+      grid-template-columns:1fr;
+      padding-top:100px;
+    }
     aside#trending{
       position:sticky !important;
-      top:64px;
-      max-height:calc(100vh - 72px);
+      top:96px;
+      max-height:calc(100vh - 108px);
     }
+    .control-bar{ top:52px; padding:6px 16px; }
     nav.top-nav{ gap:5px; }
     nav.top-nav .hdr-btn{ width:38px; height:38px; padding:8px; }
     nav.top-nav .hdr-ico, nav.top-nav .hdr-ico svg{ width:16px; height:16px; }
-    .control-bar{ padding:6px 16px; }
     header{ padding-left:12px; padding-right:12px; }
     .masthead-row{ gap:8px; }
     h1{ font-size:18px; }
@@ -1157,11 +1192,14 @@ try{
     .story-index .src{margin-top:0;}
     .story.hero h2{ font-size:22px; }
     header{ padding:12px 12px; }
-    .control-bar{ padding:8px 12px; }
-    main{ padding:16px 14px 60px; }
+    .control-bar{ top:50px; padding:8px 12px; }
+    main{ padding:96px 14px 60px; }
+    aside#trending{
+      top:92px;
+      max-height:calc(100vh - 100px);
+    }
     nav.top-nav{ gap:4px; }
     nav.top-nav .hdr-btn{ width:36px; height:36px; padding:6px; border-radius:10px; }
-
   }
 
   /* Markdown render qilingan matn uchun uslub — h2/h3, bold, ro'yxatlar
@@ -2623,10 +2661,12 @@ import {
             }
           }catch(_){}
         }
+        a.aiSharh = cached.aiSharh || cached.explainResult || '';
+        a.explainResult = a.aiSharh;
         // fade-in o'rniga so'zma-so'z reveal
         await revealWordsSmooth(translateBody, tTitle + (tDesc ? ('\n\n' + tDesc) : ''), { markdown: true, delay: 38 });
         await new Promise(r => setTimeout(r, 120));
-        await revealWordsSmooth(body, cached.aiSharh || cached.explainResult, { markdown: true, delay: 38 });
+        await revealWordsSmooth(body, a.aiSharh, { markdown: true, delay: 38 });
         return;
       }
     }catch(e){
@@ -2715,6 +2755,9 @@ Murakkab so'zlarni tushuntir. Taxminni fakt qilib yozma. Sarlavhani takrorlama.`
         const origSave = articleOriginal(a);
         await saveTranslation(a.id, titleUz, descUz, origSave.title, origSave.desc);
         await saveExplainResult(a.id, result || '');
+        // Lokal ham yangilaymiz — chat konteksti darhol ko'rsin
+        a.aiSharh = result || '';
+        a.explainResult = result || '';
       }catch(e){
         console.warn('explainResult/tarjima saqlanmadi:', e.message);
       }
@@ -2738,6 +2781,52 @@ Murakkab so'zlarni tushuntir. Taxminni fakt qilib yozma. Sarlavhani takrorlama.`
   const chatHistories = {}; // idx -> [{role, content}]  (system prompt shu yerda saqlanadi, DB'ga yozilmaydi)
   const chatLoaded = {};    // idx -> bool, DB'dan tarix bir marta yuklandimi
 
+  // Har safar yangilangan kontekst — sana, manba, AI sharh (agar bor)
+  function buildChatSystemPrompt(a){
+    const orig = articleOriginal(a);
+    const uz = articleUz(a);
+    const topicTitle = decodeHtml((uz && uz.title) || orig.title || a.title || '');
+    const topicDesc = decodeHtml((uz && uz.desc) || orig.desc || a.description || '');
+    const src = sourceName(a);
+    let pubDateStr = '';
+    try{
+      if(a.publishedAt){
+        const d = new Date(a.publishedAt);
+        if(!isNaN(d.getTime())){
+          pubDateStr = d.toLocaleString('uz-UZ', {
+            year: 'numeric', month: 'long', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+          });
+        }
+      }
+    }catch(_){}
+    const explain = (a.aiSharh || a.explainResult || '').toString().trim();
+    const explainBlock = explain
+      ? `\nAI tushuntirishi (allaqachon berilgan, shunga tayangan holda javob ber):\n${explain.slice(0, 1800)}`
+      : '';
+
+    return `Sen FAQAT shu bitta yangilik haqida gaplashadigan suhbatdoshisan. Boshqa mavzuga o'tma.
+
+=== ICHKI KONTEKST (foydalanuvchiga so'zma-so'z o'qib berma, lekin bilib ol va shunga asoslan) ===
+Sarlavha: ${topicTitle}
+Tavsif: ${topicDesc}
+Manba: ${src}
+${pubDateStr ? "E'lon qilingan sana: " + pubDateStr : "E'lon qilingan sana: noma'lum (taxmin qilma)"}
+${explainBlock}
+=== KONTEKST TUGADI ===
+
+QATIY QOIDALAR:
+1) FAQAT yuqoridagi kontekst va suhbat tarixidagi faktlarga tayan. Bilmagan narsangni O'YLAB TOPMA (sana, raqam, ism, sabab).
+2) Agar kontekstda yo'q bo'lsa — ochiq ayt: "Bu haqda maqolada aniq ma'lumot yo'q" yoki "Aniq sanani bilmayman".
+3) To'liq sarlavhani yoki tavsifni so'zma-so'z takrorlama.
+4) "Qanday yordam bera olaman?" deb yozma. Umumiy chatbot ohangi taqiqlanadi.
+5) Salom / qisqa xabarda: 1 qisqa, tabiiy savol yoki 1-2 gaplik qisqa javob.
+   YAXSHI: "Salom! Anthropic va Trump ma'muriyati haqidagi bu xabar qiziqtirdimi?"
+   YOMON: "Salom! ... Qanday yordam bera olaman?"
+6) Sana so'ralsa — faqat kontekstdagi "E'lon qilingan sana"ni ayt. Yo'q bo'lsa — bilmasligingni ayt, o'ylab topma.
+7) Javoblaring o'zbekcha, qisqa va aniq. Kerak bo'lsa keyin chuqurlash.`;
+  }
+
   async function toggleDiscuss(idx){
     const panel = document.getElementById(`chat-panel-${idx}`);
     if(panel) panel.classList.add('show');
@@ -2745,24 +2834,8 @@ Murakkab so'zlarni tushuntir. Taxminni fakt qilib yozma. Sarlavhani takrorlama.`
 
     const a = currentArticles[idx];
     if(!chatHistories[idx]){
-      const topicTitle = decodeHtml(a.title || '');
-      const topicDesc = decodeHtml(a.description || '');
       chatHistories[idx] = [
-        { role: 'system', content: `Sen FAQAT shu bitta yangilik haqida gaplashadigan suhbatdoshisan.
-
-ICHKI KONTEKST (bu matnni foydalanuvchiga hech qachon to'liq o'qib berma, shunchaki biling):
-Sarlavha: ${topicTitle}
-Tavsif: ${topicDesc}
-
-QATIY USLUB:
-1) To'liq sarlavhani yoki tavsifni so'zma-so'z takrorlama. Uzun yangilik nomini gapning o'rtasiga tiqma.
-2) Salom / "nima bu" / "nima gap" kabi qisqa xabarda: 2-4 ta asosiy ot (kim va nima) bilan QISQA, tabiiy savol ber.
-   YAXSHI: "Salom! Cursor Origin haqida bilmoqchimisiz?"
-   YAXSHI: "Salom! GitHub ishlamagan paytdagi Origin chiqishi qiziqtirdimi?"
-   YOMON: "Salom! GitHub ishlamay qolganda, Cursor o'zining hamkasbi Originni ishga tushirdi, bu haqda nimani muhokama qilmoqchisiz?"
-3) "Qanday yordam bera olaman?" kabi umumiy yordamchi ohangida yozma. Mavzuni 1 qisqa savol bilan och.
-4) Boshqa mavzuga o'tishsa, muloyimlik bilan shu yangilikka qaytar — lekin yana to'liq sarlavhani aytma.
-5) Javoblaring o'zbekcha, qisqa-tabiiy, keyin savolga qarab chuqurlash. Faktlarga tayan.` }
+        { role: 'system', content: buildChatSystemPrompt(a) }
       ];
     }
 
@@ -2799,6 +2872,11 @@ QATIY USLUB:
     btn.disabled = true;
 
     appendChatMessage(a.id, 'user', text).catch(e => console.warn('chat write xato:', e.message));
+
+    // Har so'rovda kontekstni yangilaymiz (sana, AI sharh — agar keyinroq chiqqan bo'lsa)
+    if(chatHistories[idx][0] && chatHistories[idx][0].role === 'system'){
+      chatHistories[idx][0].content = buildChatSystemPrompt(a);
+    }
 
     const thinkingEl = appendChatMsg(log, 'ai', 'AI yozmoqda...', { loading: true });
     pinScroll(2500);
