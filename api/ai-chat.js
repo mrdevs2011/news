@@ -5,7 +5,13 @@
 // Kerakli env variable'lar (Vercel -> Settings -> Environment Variables):
 //   GROQ_KEYS        = "gsk_xxx,gsk_yyy"        (vergul bilan ajratilgan, bir nechta bo'lishi mumkin)
 //   OPENROUTER_KEYS   = "sk-or-xxx"
-//   GEMINI_KEYS       = "AIzaxxx,AIzayyy"
+//
+// Bratan, Gemini butunlay olib tashlandi: Google endi yangi key'larni "AQ."
+// prefiksi bilan chiqaryapti (OAuth token formati), eski "AIza" statik key
+// formati emas — ?key= query parametr orqali ishlaydigan usul bilan mos
+// kelmaydi, 401 ACCESS_TOKEN_TYPE_UNSUPPORTED beradi. Bu — Google tomonidagi
+// platforma o'zgarishi, bizning kodimizdagi bug emas. Endi faqat Groq va
+// OpenRouter ishlaydi.
 
 // Bratan, MUHIM TUZATISH: avval FAQAT vergul (",") bilan ajratardi. Agar
 // Vercel'ga key'larni har birini ALOHIDA QATORGA (Enter bilan) joylagan bo'lsang,
@@ -22,13 +28,12 @@ function parseKeyList(raw) {
 function loadKeyPools() {
   const pools = {
     groq: parseKeyList(process.env.GROQ_KEYS),
-    openrouter: parseKeyList(process.env.OPENROUTER_KEYS),
-    gemini: parseKeyList(process.env.GEMINI_KEYS)
+    openrouter: parseKeyList(process.env.OPENROUTER_KEYS)
   };
   // Diagnostika: Vercel -> Project -> Logs ichida shu qatorni ko'rasan —
   // agar bu yerda "groq=1" chiqsa-yu, sen 10+ key qo'ygan bo'lsang, demak
   // parsing muammosi bor edi (yoki hali eski deploy ishlab turibdi — pastga qara).
-  console.log(`[key-pools] groq=${pools.groq.length} openrouter=${pools.openrouter.length} gemini=${pools.gemini.length}`);
+  console.log(`[key-pools] groq=${pools.groq.length} openrouter=${pools.openrouter.length}`);
   return pools;
 }
 
@@ -78,47 +83,19 @@ async function callOpenRouter(key, messages) {
   return data.choices?.[0]?.message?.content?.trim() || '';
 }
 
-async function callGemini(key, messages) {
-  const sysMsg = messages.find(m => m.role === 'system');
-  const convo = messages.filter(m => m.role !== 'system');
-  const contents = convo.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }]
-  }));
-  const body = {
-    contents,
-    ...(sysMsg ? { systemInstruction: { parts: [{ text: sysMsg.content }] } } : {})
-  };
-  // Bratan, MUHIM: "gemini-3-flash" degan model UMUMAN MAVJUD EMAS — sen screenshot
-  // yuborgan xato aynan shundan edi. gemini-2.0-flash hozircha eng barqaror va bepul
-  // tier'da ishlaydigan variant. Agar bu ham 404 bersa — key'ing bilan qaysi modellar
-  // ochiqligini shu yerdan tekshir: https://generativelanguage.googleapis.com/v1beta/models?key=SENING_KEYING
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    }
-  );
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    const err = new Error(errBody.error?.message || `HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-}
+const CALLERS = { groq: callGroq, openrouter: callOpenRouter };
 
-const CALLERS = { groq: callGroq, openrouter: callOpenRouter, gemini: callGemini };
-
-// Sen aytgan aniq tartib:
-// 1-AYLANISH: groq (barcha key'lar) -> openrouter (barcha key'lar) -> gemini (barcha key'lar)
-// Agar shu 3tasi ham to'liq tugasa (hammasi limitga urilsa/xato bersa) —
-// 2-AYLANISH (retry loop): yana groq -> openrouter (gemini YO'Q — faqat 2 marta urinamiz, cheksiz aylanmaymiz).
-// Shundan keyin ham hech narsa ishlamasa — foydalanuvchiga "biroz kutib tur" xabari chiqadi.
-const FIRST_PASS = ['groq', 'openrouter', 'gemini'];
+// Gemini olib tashlangandan keyin: 1-AYLANISH va 2-AYLANISH (retry) endi
+// AYNAN BIR XIL ro'yxat (groq -> openrouter) bo'lib qoldi. Bratan, buni
+// bilib qo'y: agar ikkalasi ORASIDA vaqt o'tmasa (masalan Groq rate-limit
+// oynasi qayta ochilishi uchun kerak bo'lgan soniyalar), ikkinchi aylanish
+// birinchisi bilan XUDDI BIR XIL natija beradi — key'lar o'zgarmagan,
+// xato sabab o'zgarmagan. Shuning uchun ikkinchi aylanishdan oldin qisqa
+// kutish (masalan 1-2 soniya) qo'shilmasa, RETRY_PASS deyarli foydasiz
+// bo'lib qoladi, faqat funksiya ishlash vaqtini (va Vercel hisobingni)
+// bekorga oshiradi. Hozircha mantiqni o'zgartirmadim — faqat shuni bilib
+// yur, keyinchalik kerak bo'lsa retry oldiga await sleep(1500) qo'shamiz.
+const FIRST_PASS = ['groq', 'openrouter'];
 const RETRY_PASS = ['groq', 'openrouter'];
 
 // Bitta provider'ning barcha key'larini TARTIB BILAN (0-indexdan boshlab, tasodifiy emas)
@@ -156,7 +133,7 @@ export default async function handler(req, res) {
 
   const KEY_POOLS = loadKeyPools();
 
-  // 1-AYLANISH: groq -> openrouter -> gemini
+  // 1-AYLANISH: groq -> openrouter
   for (const provider of FIRST_PASS) {
     const pool = KEY_POOLS[provider];
     if (!pool.length) continue;
@@ -167,7 +144,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2-AYLANISH (retry loop): 1-aylanishda HAMMASI (groq, openrouter, gemini) tugagan
+  // 2-AYLANISH (retry loop): 1-aylanishda HAMMASI (groq, openrouter) tugagan
   // bo'lsa ham, ba'zan bir necha soniyada rate-limit oyna qayta ochilishi mumkin —
   // shuning uchun groq va openrouter'ni yana bir bor sinab ko'ramiz.
   for (const provider of RETRY_PASS) {
@@ -183,6 +160,6 @@ export default async function handler(req, res) {
   // Ikkala aylanish ham quladi — endi rostini aytamiz, "AI ishlamayapti" emas,
   // "hozircha bandmiz, biroz kut" degan aniq xabar.
   res.status(503).json({
-    error: "Barcha AI provayderlar (Groq, OpenRouter, Gemini) hozir band yoki kunlik limitga uchagan. Iltimos, bir necha daqiqadan so'ng qayta urinib ko'ring."
+    error: "Barcha AI provayderlar (Groq, OpenRouter) hozir band yoki kunlik limitga uchagan. Iltimos, bir necha daqiqadan so'ng qayta urinib ko'ring."
   });
 }
