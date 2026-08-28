@@ -259,17 +259,16 @@ try{
     margin:0 auto;
     display:flex;
     align-items:center;
-    justify-content:space-between;
-    flex-wrap:wrap;
+    justify-content:flex-end;
     gap:10px;
-    padding:10px 32px;
+    padding:6px 32px;
     border-bottom:1px solid var(--line);
     font-family:var(--mono);
-    font-size:10.5px;
+    font-size:11px;
     color:var(--ink-dim);
-    letter-spacing:.06em;
-    text-transform:uppercase;
+    letter-spacing:.04em;
   }
+  .control-bar .dev-status{ display:none; }
   .control-bar .control-left{
     display:flex;
     align-items:center;
@@ -394,6 +393,27 @@ try{
     padding:4px 2px;
     transition:color .28s ease, transform .28s ease;
   }
+  .card-actions{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:10px;
+    margin-top:auto;
+  }
+  .later-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    width:34px;
+    height:34px;
+    border-radius:10px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .later-btn svg{ width:16px; height:16px; }
+  .later-btn.on{ border-color:var(--wire-amber); color:var(--wire-amber); }
   .card-more:hover{ color:var(--wire-amber); }
   .card-more svg{ width:16px; height:16px; transition:transform .28s ease; }
   .story.open .card-more svg{ transform:rotate(180deg); }
@@ -442,13 +462,20 @@ try{
   .ask-row button svg{ width:18px; height:18px; }
   .story.hero{
     padding:16px;
-    grid-template-columns:160px 1fr;
+    grid-template-columns:1fr;
+    grid-template-areas:
+      "pic"
+      "body"
+      "more";
+    gap:14px;
+    margin-bottom:22px;
   }
   .story.hero .story-thumb{
-    width:160px;
-    height:160px;
-    min-height:160px;
-    aspect-ratio:1;
+    width:100%;
+    height:auto;
+    min-height:280px;
+    aspect-ratio:16/9;
+    border-radius:20px;
   }
   .story.hero .story-index{
     display:flex;
@@ -457,10 +484,10 @@ try{
     margin-bottom:8px;
   }
   .story.hero h2{
-    font-size:28px;
-    line-height:1.25;
+    font-size:32px;
+    line-height:1.22;
   }
-  .story.hero p.desc{ font-size:15.5px; }
+  .story.hero p.desc{ font-size:16.5px; }
   #feed-col > .story:last-of-type{ border-bottom:none; }
 
   .story-index{
@@ -488,11 +515,15 @@ try{
   .story h2 a{color:var(--ink); text-decoration:none;}
   .story h2 a:hover{color:var(--wire-amber);}
 
+  .story.read{ opacity:.58; }
+  .story.read:hover, .story.read.open{ opacity:1; }
   .story p.desc{
     font-size:14.5px;
     line-height:1.55;
     color:var(--ink-dim);
-    font-style:italic;
+    font-style:normal;
+  }
+  html[data-theme="light"] .story p.desc{ color:#3a372f; }
   }
 
   /* SIDEBAR — "ENG KO'P O'QILGANLAR". JS orqali currentArticles'ning
@@ -539,6 +570,12 @@ try{
     font-weight:500;
   }
   #trending-list a:hover{ color:var(--wire-amber); }
+  #trending-list .t-empty{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-dim);
+    list-style:none;
+  }
 
   .story .meta{
     font-family:var(--mono);
@@ -728,6 +765,7 @@ try{
     display:none;
   }
   .chat-panel.show{display:block;}
+  .chat-log:empty{ display:none; }
   .chat-log{
     display:flex;
     flex-direction:column;
@@ -904,8 +942,10 @@ try{
   @media (max-width:900px){
     main{ grid-template-columns:1fr; }
     aside#trending{ position:static; }
-    nav.top-nav{ gap:6px; }
+    nav.top-nav{ gap:6px; flex-wrap:wrap; justify-content:flex-end; }
     nav.top-nav .hdr-btn{ padding:8px 10px; font-size:11px; }
+    .control-bar{ padding:6px 16px; }
+    header{ padding-left:16px; padding-right:16px; }
   }
 
   @media (max-width:600px){
@@ -1028,17 +1068,17 @@ try{
 
 <div class="control-bar">
   <div class="control-left">
-    <span id="dbStatus">DB: TEKSHIRILMOQDA...</span>
-    <span id="aiStatus">AI: TEKSHIRILMOQDA...</span>
     <span id="clock">--:--:--</span>
-    <span class="status-line" id="statusLine">TERMINAL IDLE</span>
+    <span class="dev-status" id="dbStatus"></span>
+    <span class="dev-status" id="aiStatus"></span>
+    <span class="dev-status status-line" id="statusLine"></span>
   </div>
 </div>
 
 <main>
   <div id="feed-col">
     <div id="feed-meta">
-      <span id="feedLabel">GLOBAL FEED</span>
+      <span id="feedLabel">Bugungi to'plam</span>
       <span id="feedCount">0 TA YANGILIK</span>
     </div>
     <div id="feed">
@@ -1047,7 +1087,7 @@ try{
   </div>
 
   <aside id="trending">
-    <h3>Eng ko'p o'qilganlar</h3>
+    <h3>Oxirgi ochilganlar</h3>
     <ol id="trending-list"></ol>
   </aside>
 </main>
@@ -1112,12 +1152,12 @@ import {
   function setAiStatus(text, cls){
     const el = document.getElementById('aiStatus');
     el.textContent = 'AI: ' + text;
-    el.className = cls || '';
+    el.className = 'dev-status' + (cls ? ' ' + cls : '');
   }
   function setDbStatus(text, cls){
     const el = document.getElementById('dbStatus');
     el.textContent = 'DB: ' + text;
-    el.className = cls || '';
+    el.className = 'dev-status' + (cls ? ' ' + cls : '');
   }
   setAiStatus('SERVER PROXY ORQALI', '');
   setDbStatus('FIRESTORE ULANDI', 'ok');
@@ -1161,6 +1201,37 @@ import {
   const PREF_TRANSLATE = 'fmn-translate';
   const PREF_VISIBLE = 'fmn-visible';
   const PREF_PAGE = 'fmn-gnews-page';
+  const PREF_READ = 'fmn-read';
+  const PREF_LATER = 'fmn-later';
+  const PREF_OPENED = 'fmn-opened';
+
+  function readList(key){
+    try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
+  }
+  function writeList(key, arr){
+    try{ localStorage.setItem(key, JSON.stringify(arr.slice(0, 40))); }catch(e){}
+  }
+  function isRead(id){ return readList(PREF_READ).includes(id); }
+  function isLater(id){ return readList(PREF_LATER).includes(id); }
+  function markRead(id){
+    if(!id) return;
+    const ids = readList(PREF_READ);
+    if(!ids.includes(id)) writeList(PREF_READ, ids.concat(id));
+  }
+  function markOpened(a){
+    if(!a || !a.id) return;
+    const items = readList(PREF_OPENED).filter(x => x && x.id !== a.id);
+    items.unshift({ id: a.id, title: a.title || 'Sarlavhasiz' });
+    writeList(PREF_OPENED, items);
+    markRead(a.id);
+  }
+  function toggleLater(id){
+    if(!id) return false;
+    const ids = readList(PREF_LATER);
+    const on = ids.includes(id);
+    writeList(PREF_LATER, on ? ids.filter(x => x !== id) : ids.concat(id));
+    return !on;
+  }
   const INITIAL_FEED = 7;
   const MORE_FEED = 5;
 
@@ -1228,7 +1299,7 @@ import {
         feedLabel.textContent = "TARIX — KUNLARNI TANLA";
         renderDayList();
       }else{
-        feedLabel.textContent = currentMode === 'global' ? 'GLOBAL FEED' : "O'ZBEKISTON FEED";
+        feedLabel.textContent = currentMode === 'global' ? "Bugungi to'plam" : "O'zbekiston to'plami";
         loadFeed();
       }
     });
@@ -1285,7 +1356,7 @@ import {
 
   async function showCachedFeed(dateKey, note){
     const cached = await getArticlesByDateMode(dateKey, currentMode);
-    currentArticles = cached.map(cleanArticleText);
+    currentArticles = pickFeatured(cached.map(cleanArticleText));
     if(!currentArticles.length){
       feedEl.innerHTML = '<div class="placeholder">FIRESTORE\'DA HALI YANGILIK YO\'Q<br>SLOT VAQTI KELGANDA GNEWS\'DAN OLINADI</div>';
       feedCount.textContent = '0 TA YANGILIK';
@@ -1445,6 +1516,33 @@ import {
   // opts.history = true bo'lsa, tepaga "kunlar ro'yxatiga qaytish" tugmasi
   // chiqadi — bu funksiya ham live feed, ham tarix kunini bir xil render
   // qiladi (kod takrorlanmasin deb — story markup ikkalasida ham bir xil).
+  function buzzScore(a){
+    let s = interestScore(a);
+    if(a.image || a.imageUrl || a.urlToImage) s += 4;
+    const t = Date.parse(a.publishedAt || '') || 0;
+    if(t){
+      const hours = (Date.now() - t) / 36e5;
+      if(hours < 12) s += 5;
+      else if(hours < 24) s += 3;
+      else if(hours < 48) s += 1;
+    }
+    return s;
+  }
+
+  function pickFeatured(list){
+    if(!list || list.length < 2) return list || [];
+    let best = 0, bestS = -1;
+    list.forEach((a, i) => {
+      const s = buzzScore(a);
+      if(s > bestS){ bestS = s; best = i; }
+    });
+    if(best === 0) return list;
+    const out = list.slice();
+    const [item] = out.splice(best, 1);
+    out.unshift(item);
+    return out;
+  }
+
   function interestScore(a){
     const text = ((a.title || '') + ' ' + (a.description || '')).toLowerCase();
     const keys = ['ai','chatgpt','claude','gemini','llm','openai','cursor','copilot','vibe','github','code','programming','python','javascript','typescript','arduino','raspberry','chip','gpu','nvidia','security','hack','startup','hardware','electronics','open source','developer'];
@@ -1465,6 +1563,29 @@ import {
     });
   }
 
+  async function loadMoreFromArchive(){
+    const mode = currentMode === 'local' ? 'local' : 'global';
+    const existing = new Set(currentArticles.map(a => a.id));
+    const extra = [];
+    try{
+      const days = await getRecentDays(20);
+      for(const day of days){
+        const docs = await getArticlesByDateMode(day, mode);
+        for(const raw of docs || []){
+          const a = cleanArticleText(raw);
+          if(!a.id || existing.has(a.id)) continue;
+          extra.push(a);
+          existing.add(a.id);
+        }
+        if(extra.length >= MORE_FEED) break;
+      }
+    }catch(e){
+      console.warn('arxiv more:', e.message);
+    }
+    extra.sort((a, b) => interestScore(b) - interestScore(a));
+    return extra;
+  }
+
   async function loadMoreNews(){
     const btn = document.getElementById('moreBtn');
     if(btn){
@@ -1472,46 +1593,72 @@ import {
       btn.textContent = 'YUKLANMOQDA...';
     }
     const target = visibleCount + MORE_FEED;
+    let added = 0;
     try{
-      // Qoldiq sahifani ochmaymiz — har MORE yangi qiziq mavzuning boshini oladi.
-      const { dateKey, slot } = currentNewsSlot();
-      const existing = new Set(currentArticles.map(a => a.id));
-      let added = 0;
-      for(let attempt = 0; attempt < 4 && added < MORE_FEED; attempt++){
-        gnewsPage += 1;
-        const topic = (gnewsPage + new Date().getHours()) % 6;
-        const res = await fetch(`/api/gnews?mode=${currentMode}&more=1&topic=${topic}`);
-        const data = await res.json().catch(() => ({}));
-        if(!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        const raw = (data.articles || [])
-          .slice()
-          .sort((a, b) => interestScore(b) - interestScore(a));
-        const saved = await persistGnewsBatch(raw, dateKey, slot);
-        const fresh = saved.filter(a => {
-          if(!a.id || existing.has(a.id)) return false;
-          if(isNearDuplicate(a, currentArticles)) return false;
-          if(interestScore(a) < 2) return false;
-          return true;
-        });
-        fresh.forEach(a => existing.add(a.id));
-        currentArticles = currentArticles.concat(fresh);
-        added += fresh.length;
+      if(currentArticles.length >= target){
+        visibleCount = target;
+        savePrefs();
+        renderFeed(currentArticles);
+        return;
       }
-      visibleCount = currentArticles.length >= target ? target : Math.max(visibleCount, currentArticles.length);
+
+      const archived = await loadMoreFromArchive();
+      if(archived.length){
+        currentArticles = currentArticles.concat(archived);
+        added += archived.length;
+      }
+
+      if(currentArticles.length < target && currentMode !== 'history'){
+        const { dateKey, slot } = currentNewsSlot();
+        const existing = new Set(currentArticles.map(a => a.id));
+        const fetchMode = currentMode === 'local' ? 'local' : 'global';
+        for(let attempt = 0; attempt < 3 && currentArticles.length < target; attempt++){
+          gnewsPage += 1;
+          const topic = (gnewsPage + new Date().getHours()) % 6;
+          try{
+            const res = await fetch(`/api/gnews?mode=${fetchMode}&more=1&topic=${topic}`);
+            const data = await res.json().catch(() => ({}));
+            if(!res.ok){
+              console.warn('gnews more:', data.error || res.status);
+              continue;
+            }
+            const raw = (data.articles || []).slice().sort((a, b) => interestScore(b) - interestScore(a));
+            const saved = await persistGnewsBatch(raw, dateKey, slot);
+            const fresh = saved.filter(a => a.id && !existing.has(a.id) && !isNearDuplicate(a, currentArticles));
+            fresh.forEach(a => existing.add(a.id));
+            currentArticles = currentArticles.concat(fresh);
+            added += fresh.length;
+          }catch(e){
+            console.warn('gnews more urinish:', e.message);
+          }
+        }
+      }
+
+      visibleCount = currentArticles.length >= target
+        ? target
+        : Math.max(visibleCount, currentArticles.length);
       savePrefs();
       renderFeed(currentArticles);
-      if(added === 0){
+      if(added === 0 && currentArticles.length <= visibleCount){
         const again = document.getElementById('moreBtn');
-        if(again) again.textContent = 'MORE — YANA URINIB KO\'R';
+        if(again){
+          again.disabled = false;
+          again.textContent = 'Yana 5 ta';
+        }
       }
     }catch(err){
       console.error(err);
+      if(currentArticles.length > visibleCount){
+        visibleCount = Math.min(target, currentArticles.length);
+        savePrefs();
+        renderFeed(currentArticles);
+        return;
+      }
       const again = document.getElementById('moreBtn');
       if(again){
         again.disabled = false;
-        again.textContent = 'MORE — XATO, QAYTA';
+        again.textContent = 'Yana 5 ta';
       }
-      statusLine.textContent = 'MORE XATOLIGI: ' + err.message;
     }
   }
 
@@ -1525,7 +1672,7 @@ import {
 
     if(!articles.length){
       feedEl.innerHTML = backNav + '<div class="placeholder">BU KUN UCHUN YANGILIK TOPILMADI</div>'
-        + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">MORE</button></div>');
+        + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">Yana 5 ta</button></div>');
       feedCount.textContent = '0 TA YANGILIK';
       if(opts.history) bindBackButton();
       const emptyMore = document.getElementById('moreBtn');
@@ -1549,18 +1696,23 @@ import {
         ? `<div class="story-thumb"><img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(a.title || src)}" loading="${isHero ? 'eager' : 'lazy'}" onerror="this.remove()"></div>`
         : `<div class="story-thumb">${escapeHtml(src)}</div>`;
       return `
-        <article class="story${isHero ? ' hero' : ''}" data-idx="${i}" data-id="${a.id}">
+        <article class="story${isHero ? ' hero' : ''}${isRead(a.id) ? ' read' : ''}" data-idx="${i}" data-id="${a.id}">
           <div class="story-top">
           ${thumb}
           <div class="story-body">
-          <div class="story-index">${num}<span class="src">${escapeHtml(src)}</span></div>
+          <div class="story-index">${isHero ? '<span class="src">BUGUNGI ENG MASHHUR</span>' : ''}<span class="src">${escapeHtml(src)}</span></div>
             <h2 id="title-${i}"><a href="${a.url}" target="_blank" rel="noopener" id="title-link-${i}">${escapeHtml(a.title || 'Sarlavhasiz')}</a></h2>
             <p class="desc" id="desc-${i}">${desc}</p>
             <div class="meta">${date}</div>
-            <button type="button" class="card-more" data-action="more" data-idx="${i}">
-              <span class="card-more-label">More</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-            </button>
+            <div class="card-actions">
+              <button type="button" class="later-btn${isLater(a.id) ? ' on' : ''}" data-action="later" data-id="${a.id}" title="Keyinroq">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+              </button>
+              <button type="button" class="card-more" data-action="more" data-idx="${i}">
+                <span class="card-more-label">More</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+            </div>
           </div>
           </div>
           <div class="story-more" id="story-more-${i}">
@@ -1583,7 +1735,7 @@ import {
             </div>
           </div>
         </article>`;
-    }).join('') + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">MORE</button></div>');
+    }).join('') + (opts.history ? '' : '<div class="more-wrap"><button type="button" id="moreBtn" class="more-btn">Yana 5 ta</button></div>');
 
     // Sidebar "ENG KO'P O'QILGANLAR" — haqiqiy o'qilish statistikasi yo'q
     // (buning uchun alohida analytics/Firestore counter kerak bo'lardi),
@@ -1593,6 +1745,13 @@ import {
 
     feedEl.querySelectorAll('[data-action="more"]').forEach(btn => {
       btn.addEventListener('click', () => toggleCardMore(Number(btn.dataset.idx)));
+    });
+    feedEl.querySelectorAll('[data-action="later"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const on = toggleLater(btn.dataset.id);
+        btn.classList.toggle('on', on);
+      });
     });
     feedEl.querySelectorAll('[data-action="send"]').forEach(btn => {
       btn.addEventListener('click', () => handleSend(Number(btn.dataset.idx)));
@@ -1627,26 +1786,47 @@ import {
   // bosilganda o'sha story'ga smooth scroll qiladi.
   function renderTrending(articles){
     const list = document.getElementById('trending-list');
+    const box = document.getElementById('trending');
     if(!list) return;
-    const picks = articles.slice(1, 5);
-    if(!picks.length){ list.innerHTML = ''; return; }
-    list.innerHTML = picks.map((a, k) => {
-      const idx = k + 1;
-      const uz = articleUz(a);
-      const title = (translateModeOn && uz && uz.title)
-        ? uz.title
-        : (articleOriginal(a).title || a.title || 'Sarlavhasiz');
-      return `
+    const opened = readList(PREF_OPENED);
+    const laterIds = readList(PREF_LATER);
+    const byId = {};
+    (articles || []).forEach(a => { if(a.id) byId[a.id] = a; });
+    const picks = [];
+    opened.forEach(item => {
+      if(item && item.id && picks.length < 6 && !picks.some(p => p.id === item.id)){
+        const live = byId[item.id];
+        picks.push({
+          id: item.id,
+          title: (live && (articleUz(live)?.title || live.title)) || item.title || 'Sarlavhasiz'
+        });
+      }
+    });
+    laterIds.forEach(id => {
+      if(picks.length >= 6) return;
+      if(picks.some(p => p.id === id)) return;
+      const live = byId[id];
+      if(live) picks.push({ id, title: articleUz(live)?.title || live.title || 'Keyinroq' });
+    });
+    if(!picks.length){
+      list.innerHTML = '<li class="t-empty">Hali ochilgan yangilik yo\'q</li>';
+      if(box) box.style.display = '';
+      return;
+    }
+    list.innerHTML = picks.map((a, k) => `
       <li>
-        <span class="t-num">${idx}.</span>
-        <a href="#" id="trend-link-${idx}" data-scroll-idx="${idx}">${escapeHtml(title)}</a>
-      </li>`;
-    }).join('');
-    list.querySelectorAll('[data-scroll-idx]').forEach(link => {
+        <span class="t-num">${k+1}.</span>
+        <a href="#" data-open-id="${a.id}">${escapeHtml(a.title)}</a>
+      </li>`).join('');
+    list.querySelectorAll('[data-open-id]').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        const target = document.querySelector(`.story[data-idx="${link.dataset.scrollIdx}"]`);
-        if(target) target.scrollIntoView({ behavior:'smooth', block:'start' });
+        const target = document.querySelector(`.story[data-id="${link.dataset.openId}"]`);
+        if(target){
+          target.scrollIntoView({ behavior:'smooth', block:'start' });
+          const idx = Number(target.dataset.idx);
+          if(!target.classList.contains('open')) toggleCardMore(idx);
+        }
       });
     });
   }
@@ -1702,7 +1882,7 @@ import {
     feedLabel.textContent = formatDateUz(dateKey).toUpperCase();
     try{
       const docs = await getArticlesByDate(dateKey);
-      currentArticles = (docs || []).map(cleanArticleText);
+      currentArticles = pickFeatured((docs || []).map(cleanArticleText));
       renderFeed(currentArticles, { history: true, date: dateKey });
       statusLine.textContent = 'TARIX — ' + dateKey;
     }catch(err){
@@ -1799,6 +1979,10 @@ import {
     const label = card.querySelector('.card-more-label');
     if(label) label.textContent = 'More';
     if(open){
+      const a = currentArticles[idx];
+      markOpened(a);
+      card.classList.add('read');
+      renderTrending(currentArticles);
       await toggleDiscuss(idx);
       await handleExplain(idx);
     }
@@ -1874,9 +2058,10 @@ import {
     body.textContent = 'AI javob tayyorlayapti...';
 
     const sys = `Sen tajribali xalqaro yangiliklar sharhlovchisisan. Foydalanuvchi senga allaqachon o'zbek tiliga tarjima qilingan sarlavha va tavsifni beradi (lekin asl til har xil bo'lishi mumkin — ingliz, rus va h.k., buni avtomatik aniqlab ol). Javobingni QATIYAN FAQAT O'ZBEK TILIDA yoz, boshqa hech qanday tilda emas. Quyidagi tartibda javob ber:
-1) 3-5 gapli batafsil tushuntirish: nima bo'ldi, nega muhim, fon (context)
-2) Agar tegishli bo'lsa — bu voqea nimaga olib kelishi mumkinligi haqida qisqa fikr
-Sodda, tushunarli, lekin professional uslubda yoz. Sarlavhani qayta tarjima qilib o'tirma — foydalanuvchi uni allaqachon ko'rgan, sen faqat tushuntir.`;
+1) Avval 3 ta qisqa gaplik xulosa (nima bo'ldi)
+2) Keyin 2-3 gaplik fon: nega muhim
+3) Oxirida 1 gap: bu nima olib kelishi mumkin
+Sodda, tushunarli yoz. Sarlavhani qayta takrorlama.`;
 
     const userMsg = `Sarlavha (o'zbekcha): ${titleUz}\nTavsif (o'zbekcha): ${descUz}\nManba: ${sourceName(a)}`;
 
@@ -2223,9 +2408,24 @@ QATIY USLUB:
     feedLabel.textContent = "TARIX — KUNLARNI TANLA";
     renderDayList();
   }else{
-    feedLabel.textContent = currentMode === 'global' ? 'GLOBAL FEED' : "O'ZBEKISTON FEED";
+    feedLabel.textContent = currentMode === 'global' ? "Bugungi to'plam" : "O'zbekiston to'plami";
     loadFeed();
   }
+
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if(e.key !== 'j' && e.key !== 'k' && e.key !== 'J' && e.key !== 'K') return;
+    const cards = Array.from(document.querySelectorAll('#feed .story'));
+    if(!cards.length) return;
+    const current = document.querySelector('#feed .story.open') || cards[0];
+    const i = cards.indexOf(current);
+    const next = e.key.toLowerCase() === 'j' ? Math.min(cards.length - 1, i + 1) : Math.max(0, i - 1);
+    const card = cards[next];
+    if(!card) return;
+    card.scrollIntoView({ behavior:'smooth', block:'start' });
+  });
+
   scheduleRefresh();
 })();
 </script>

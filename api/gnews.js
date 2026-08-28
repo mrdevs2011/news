@@ -62,7 +62,7 @@ export default async function handler(req, res) {
   const TECH_QUERY = TECH_QUERIES[qIndex];
   // MORE: relevance + page=1 (mavzuning eng yaxshi boshi).
   // Birinchi yuklash: publishedAt (yangiligi).
-  const sortby = isMore ? 'relevance' : 'publishedAt';
+  const sortby = 'publishedAt';
   const usePage = isMore ? 1 : page;
 
   let url;
