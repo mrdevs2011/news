@@ -14,7 +14,7 @@ service cloud.firestore {
     //   articles/{id}           — yangilik + tarjima + AI + muhokama
     //   articles/{id}/chats/{m} — legacy chat (hozir asosan aiMuhokama)
     //   days/{YYYY-MM-DD}       — TARIX kun markerlari
-    //   sync/{date_mode_slot}   — GNews slot lock (04/12/20)
+    //   sync/{date_mode_slot}   — GNews slot lock (03/07/14/20 + eski 04/12)
     // =========================================================
 
     function isStr(v, max) {
@@ -42,8 +42,9 @@ service cloud.firestore {
     }
 
     function slotOk(v) {
-      // Bo'sh string ham (eski yozuvlar / no-slot)
-      return v in ['04', '12', '20'] || v == '';
+      // 03 = tun/erta (00-06), 07 = ertalab, 14 = tushlik, 20 = kechqurun.
+      // 04/12 — eski yozuvlar. Bo'sh string ham ruxsat.
+      return v in ['03', '04', '07', '12', '14', '20'] || v == '';
     }
 
     // Article da ruxsat etilgan maydonlar (whitelist)
@@ -201,7 +202,7 @@ service cloud.firestore {
         ])
         && dateKeyOk(request.resource.data.dateKey)
         && modeOk(request.resource.data.mode)
-        && request.resource.data.slot in ['04', '12', '20']
+        && request.resource.data.slot in ['03', '04', '07', '12', '14', '20']
         && request.resource.data.status in ['pending', 'done', 'error']
         // Doc id spoofing: id = dateKey_mode_slot
         && syncId == request.resource.data.dateKey

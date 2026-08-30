@@ -1103,6 +1103,28 @@ try{
     vertical-align:middle;
     margin-left:4px;
   }
+  .placeholder .empty-reason{
+    display:block;
+    margin:10px auto 16px;
+    max-width:520px;
+    color:var(--wire-amber);
+    font-size:12px;
+    text-transform:none;
+    letter-spacing:0;
+  }
+  .retry-btn{
+    font-family:var(--mono);
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--on-accent);
+    background:var(--wire-amber);
+    border:1px solid var(--wire-amber);
+    padding:8px 14px;
+    cursor:pointer;
+  }
+  .retry-btn:hover{ filter:brightness(1.08); }
   .more-wrap{
     display:flex;
     justify-content:center;
@@ -1969,13 +1991,18 @@ import {
     return dt.toISOString().slice(0, 10);
   }
 
-  // 04:00, 12:00, 20:00 dan keyin — shu slot. 00:00–03:59 da kechagi 20:00.
+  // Har doim BUGUNGI sana. Slot faqat "qaysi partiyani qo'shamiz":
+  // 00–06 → 03 (3:00 da kirsang ham hozirgi yangilik olinadi)
+  // 07–13 → 07 ertalab
+  // 14–19 → 14 tushlik
+  // 20–23 → 20 kechqurun
+  // Har slot yangi maqolalarni shu kunga QO'SHADI, eski kunni almashtirmaydi.
   function currentNewsSlot(){
     const { dateKey, hour } = uzNow();
     if (hour >= 20) return { dateKey, slot: '20' };
-    if (hour >= 12) return { dateKey, slot: '12' };
-    if (hour >= 4) return { dateKey, slot: '04' };
-    return { dateKey: yesterdayKey(dateKey), slot: '20' };
+    if (hour >= 14) return { dateKey, slot: '14' };
+    if (hour >= 7) return { dateKey, slot: '07' };
+    return { dateKey, slot: '03' };
   }
 
   // "2026-08-27" -> "27-avgust, 2026, payshanba" ko'rinishida chiqaradi.
@@ -2003,14 +2030,23 @@ import {
     });
   }
 
-  async function showCachedFeed(dateKey, note){
+  function renderEmptyFeed(note, reason){
+    const why = reason ? `<span class="empty-reason">${escapeHtml(reason)}</span>` : '';
+    feedEl.innerHTML = `<div class="placeholder">FIRESTORE'DA HALI YANGILIK YO'Q<br>GNEWS'DAN OLINADI YOKI QAYTA URINING${why}<button type="button" class="retry-btn" id="refreshFeedBtn">HOZIR YANGILASH</button></div>`;
+    feedCount.textContent = '0 TA YANGILIK';
+    statusLine.textContent = note || 'KESH BO\'SH';
+    const btn = document.getElementById('refreshFeedBtn');
+    if(btn){
+      btn.addEventListener('click', () => loadFeed({ force: true }));
+    }
+  }
+
+  async function showCachedFeed(dateKey, note, reason){
     // Barcha mode'lar (global + local) birgalikda
     const cached = await getArticlesByDate(dateKey);
     currentArticles = sortMixNewest(cached.map(cleanArticleText));
     if(!currentArticles.length){
-      feedEl.innerHTML = '<div class="placeholder">FIRESTORE\'DA HALI YANGILIK YO\'Q<br>SLOT VAQTI KELGANDA GNEWS\'DAN OLINADI</div>';
-      feedCount.textContent = '0 TA YANGILIK';
-      statusLine.textContent = note || 'KESH BO\'SH';
+      renderEmptyFeed(note, reason);
       return false;
     }
     renderFeed(currentArticles);
@@ -2094,37 +2130,47 @@ import {
     const data = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     const rawArticles = data.articles || [];
+    if(!rawArticles.length){
+      throw new Error('GNews 0 ta maqola qaytardi (' + m + ')');
+    }
     await persistGnewsBatch(rawArticles, dateKey, slot, m);
     await finishNewsSlot(dateKey, m, slot, { status: 'done', count: rawArticles.length });
+    return rawArticles.length;
   }
 
   // Bitta mode (global yoki local) uchun slot: kesh / kutish / GNews
-  async function syncModeSlot(dateKey, slot, mode){
+  async function syncModeSlot(dateKey, slot, mode, force){
     let claim;
     try{
-      claim = await claimNewsSlot(dateKey, mode, slot);
+      claim = await claimNewsSlot(dateKey, mode, slot, !!force);
     }catch(e){
       console.warn('slot claim xato (' + mode + '):', e.message);
-      try{ await fetchGnewsSlot(dateKey, slot, mode); }catch(err){
+      try{
+        await fetchGnewsSlot(dateKey, slot, mode);
+        return null;
+      }catch(err){
         console.warn('gnews fetch xato (' + mode + '):', err.message);
+        return err.message;
       }
-      return;
     }
-    if(claim.action === 'cached') return;
+    if(claim.action === 'cached') return null;
     if(claim.action === 'wait'){
-      await waitForNewsSlot(dateKey, mode, slot);
-      return;
+      const ok = await waitForNewsSlot(dateKey, mode, slot);
+      return ok ? null : 'Slot kutilmoqda, lekin tugamadi (' + mode + ')';
     }
     try{
       await fetchGnewsSlot(dateKey, slot, mode);
+      return null;
     }catch(err){
       await finishNewsSlot(dateKey, mode, slot, { status: 'error', error: err.message }).catch(() => {});
       console.warn('gnews slot xato (' + mode + '):', err.message);
+      return err.message;
     }
   }
 
-  async function loadFeed(){
-    statusLine.textContent = 'YUKLANMOQDA...';
+  async function loadFeed(opts){
+    const force = !!(opts && opts.force);
+    statusLine.textContent = force ? 'QAYTA SO\'RALMOQDA...' : 'YUKLANMOQDA...';
     feedEl.innerHTML = '<div class="placeholder">FIRESTORE TEKSHIRILMOQDA<span class="cursor"></span></div>';
 
     Object.keys(originalTexts).forEach(k => delete originalTexts[k]);
@@ -2132,23 +2178,41 @@ import {
     const { dateKey, slot } = currentNewsSlot();
 
     try{
-      // 1) Avval bazadan — global + local aralash
-      await showCachedFeed(dateKey, 'FIRESTORE — ' + dateKey + ' / ' + slot + ':00');
+      // 1) Avval bugungi to'plam. Bo'sh bo'lsa kechagini ko'rsatib turamiz —
+      // 3:00 da ham "yangilik yo'q" chiqmasin.
+      if(!force){
+        const hasToday = await showCachedFeed(dateKey, 'FIRESTORE — ' + dateKey + ' / SLOT ' + slot);
+        if(!hasToday){
+          const y = yesterdayKey(dateKey);
+          await showCachedFeed(y, 'KECHA KO\'RSATILYAPTI — BUGUNGI YANGILIK OLINMOQDA...');
+        }
+      }
 
-      // 2) Ikkala manba slotini yangilash (global + local)
-      statusLine.textContent = 'GNEWS — GLOBAL + LOCAL YANGILANMOQDA...';
-      await Promise.all([
-        syncModeSlot(dateKey, slot, 'global'),
-        syncModeSlot(dateKey, slot, 'local')
+      // 2) Hozirgi slotni olish: 03/07/14/20. Kelgan yangilari shu kunga qo'shiladi.
+      statusLine.textContent = 'GNEWS — ' + slot + ' SLOT YANGILANMOQDA...';
+      const errs = await Promise.all([
+        syncModeSlot(dateKey, slot, 'global', force),
+        syncModeSlot(dateKey, slot, 'local', force)
       ]);
+      const reason = errs.filter(Boolean).join(' | ');
 
-      await showCachedFeed(dateKey, 'YANGILANDI — GLOBAL + LOCAL / SLOT ' + slot + ':00');
+      const has = await showCachedFeed(dateKey, 'BUGUNGI TO\'PLAM — SLOT ' + slot, reason);
+      if(!has){
+        const y = yesterdayKey(dateKey);
+        const yHas = await showCachedFeed(y, 'BUGUN BO\'SH — KECHAGI TO\'PLAM', reason);
+        if(!yHas && reason){
+          statusLine.textContent = 'GNEWS XATO — SLOT ' + slot;
+        }
+      }
     } catch(err){
       console.error(err);
       feedEl.innerHTML = `<div class="error-box">
         XATOLIK YUZ BERDI: ${escapeHtml(err.message)}<br><br>
         Tekshir: 1) Vercel'da GNEWS_KEY environment variable qo'yilganmi? 2) Kunlik limit (100) tugamadimi?
+        <br><br><button type="button" class="retry-btn" id="refreshFeedBtn">HOZIR YANGILASH</button>
       </div>`;
+      const btn = document.getElementById('refreshFeedBtn');
+      if(btn) btn.addEventListener('click', () => loadFeed({ force: true }));
       statusLine.textContent = 'XATOLIK';
     }
   }

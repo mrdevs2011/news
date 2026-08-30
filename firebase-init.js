@@ -229,14 +229,16 @@ export async function getNewsSlot(dateKey, mode, slot) {
 }
 
 // Birinchi tashrif buyuruvchi GNews oladi, qolganlari kutadi yoki keshdan o'qiydi.
-export async function claimNewsSlot(dateKey, mode, slot) {
+export async function claimNewsSlot(dateKey, mode, slot, force = false) {
   const ref = doc(db, "sync", slotDocId(dateKey, mode, slot));
   return runTransaction(db, async (t) => {
     const snap = await t.get(ref);
     const now = Date.now();
-    if (snap.exists()) {
+    if (snap.exists() && !force) {
       const d = snap.data();
-      if (d.status === "done") return { action: "cached" };
+      // Faqat haqiqatan saqlangan maqolalar bo'lsa kesh ishlatiladi.
+      // count=0 yoki error bo'lsa keyingi tashrif qayta GNews so'raydi.
+      if (d.status === "done" && (d.count || 0) > 0) return { action: "cached" };
       if (d.status === "pending" && d.startedAtMs && now - d.startedAtMs < 180000) {
         return { action: "wait" };
       }
